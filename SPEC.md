@@ -118,8 +118,8 @@ a per-language **printer** renders the finished tree. It never emits strings
 directly. This makes structural rules (non-empty bodies, depth caps) assertions
 on a tree, and makes a new language a printer plus a type map rather than a
 second generator — Python's indentation becomes a printer that indents instead
-of bracing. Statement kinds a language lacks (Go has no do-while) are switched
-off through a per-language capability set.
+of bracing. Statement kinds a language lacks (Python has no do-while) are
+switched off through a per-language capability set.
 
 **Symbol table:** a stack of scopes, each a map of name → type. Declaring
 pushes into the current scope; generating an expression asks for a visible
@@ -163,13 +163,31 @@ against text that no longer exists.
 ### Languages
 
 Several languages, sharing one tree generator and one printer per language.
-Target set: **Java, TypeScript, Go, Python**, implemented in that order.
+Launch set: **Java, TypeScript, Python**, implemented in that order.
 
 Java goes first because braces, semicolons and explicit types make its grammar
 the most rigid, so it's the easiest to get right; the tree gets tuned against
 Java before the other printers are written. Python is last because significant
 indentation is the fiddliest printer. Tuning one language at a time is
 deliberate — tuning four outputs at once means none of them get good.
+
+**Go was dropped from the launch set.** Its rigid grammar made it a convenient
+implementation target, which is the generator's interest rather than a
+player's; Java already supplies that rigidity while being a language people
+want to practise. Nothing is lost by deferring it.
+
+**More languages can be added at any time, and later is no more expensive than
+now.** Identity is `(generatorVersion, language, tier, seed)`, so a new
+language only mints new tuples: existing snippets, runs and leaderboards are
+untouched and `generatorVersion` does not move. TypeScript is the proof — it
+was added after Java without changing a byte of Java output. A language costs a
+printer, an entry in `LANGUAGES`, and its capability flags. What keeps that
+true is that no language-specific logic may leak into the tree generator or
+into the shared invariant tests; Java plus Python is the pair that proves it,
+because one braces and the other indents. The C-family additions (C#, C++,
+JavaScript) are close to free once Java exists — with the caveat that C++ has
+the most ways to look wrong to someone who writes it, and a safe generated
+subset will read as beginner C++.
 
 TypeScript is the implementation language: same as the rest of the stack, runs
 on server or client, one less runtime to deploy.
