@@ -2,6 +2,7 @@ import type { Program } from './ast.ts';
 import { TIERS, type Tier } from './config.ts';
 import { generateProgram } from './generate.ts';
 import { printJava } from './printers/java.ts';
+import { printTypescript } from './printers/typescript.ts';
 import { createRng } from './rng.ts';
 
 export type { Program, Stmt, Expr, ValueType } from './ast.ts';
@@ -15,11 +16,12 @@ export { TIERS } from './config.ts';
  */
 export const GENERATOR_VERSION = 1;
 
-export const LANGUAGES = ['java'] as const;
+export const LANGUAGES = ['java', 'typescript'] as const;
 export type Language = (typeof LANGUAGES)[number];
 
 const PRINTERS: Record<Language, (program: Program) => string> = {
   java: printJava,
+  typescript: printTypescript,
 };
 
 export interface SnippetRequest {
