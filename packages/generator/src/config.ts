@@ -52,7 +52,7 @@ export const TIERS: Record<Tier, GeneratorConfig> = {
   easy: {
     charBudget: 180,
     maxDepth: 1,
-    blockChance: 0.25,
+    blockChance: 0.35,
     reuseRate: 0.4,
     operatorChance: 0.2,
     bodyStatements: [1, 2],
@@ -64,7 +64,7 @@ export const TIERS: Record<Tier, GeneratorConfig> = {
   medium: {
     charBudget: 260,
     maxDepth: 2,
-    blockChance: 0.4,
+    blockChance: 0.55,
     reuseRate: 0.6,
     operatorChance: 0.45,
     bodyStatements: [1, 3],
@@ -76,7 +76,7 @@ export const TIERS: Record<Tier, GeneratorConfig> = {
   hard: {
     charBudget: 340,
     maxDepth: 3,
-    blockChance: 0.5,
+    blockChance: 0.6,
     reuseRate: 0.75,
     operatorChance: 0.65,
     bodyStatements: [2, 3],
