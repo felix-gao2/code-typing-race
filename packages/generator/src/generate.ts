@@ -1,6 +1,6 @@
 import type { BinaryOp, CompareOp, CompoundOp, Expr, Program, Stmt, ValueType } from './ast.ts';
 import { isBlock } from './ast.ts';
-import type { GeneratorConfig } from './config.ts';
+import type { GeneratorConfig, LanguageCapabilities } from './config.ts';
 import type { Rng } from './rng.ts';
 import { SymbolTable, type Variable } from './symbol-table.ts';
 
@@ -26,6 +26,8 @@ const DECLARATION_TYPES: readonly ValueType[] = [
   'boolean',
 ];
 
+const BLOCK_KINDS = ['if', 'if', 'if', 'for', 'for', 'for', 'while', 'doWhile'] as const;
+
 /** Nesting gets rarer the deeper it goes, so depth 3 stays a treat. */
 const NESTING_DECAY = 0.45;
 
@@ -35,6 +37,7 @@ const OPERAND_MAX = 12;
 interface Ctx {
   rng: Rng;
   config: GeneratorConfig;
+  caps: LanguageCapabilities;
   table: SymbolTable;
   loopDepth: number;
   /** Loop counters. Readable anywhere, but never assigned to — real code
@@ -49,11 +52,13 @@ interface Ctx {
 export function generateProgram(
   rng: Rng,
   config: GeneratorConfig,
+  caps: LanguageCapabilities,
   render: (program: Program) => string,
 ): Program {
   const ctx: Ctx = {
     rng,
     config,
+    caps,
     table: new SymbolTable(),
     loopDepth: 0,
     loopVariables: [],
@@ -139,7 +144,11 @@ function genStatementOnce(ctx: Ctx, depth: number, allowBlock: boolean): Stmt {
 }
 
 function genBlock(ctx: Ctx, depth: number): Stmt {
-  const kind = ctx.rng.pick(['if', 'if', 'if', 'for', 'for', 'for', 'while', 'doWhile'] as const);
+  // Repeats are the weighting. Filtering is what a missing capability does, so
+  // a language that has every kind draws from the identical list and its output
+  // does not move.
+  const kinds = BLOCK_KINDS.filter((candidate) => candidate !== 'doWhile' || ctx.caps.doWhile);
+  const kind = ctx.rng.pick(kinds);
 
   if (kind === 'for') {
     const variable = loopVariable(ctx);

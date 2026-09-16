@@ -25,6 +25,16 @@ export interface GeneratorConfig {
   identifiers: readonly string[];
 }
 
+/**
+ * Statement kinds a language does not have, switched off before generation
+ * rather than patched up in the printer. This is the only thing that makes
+ * generation language-aware; the tree is otherwise language-agnostic.
+ */
+export interface LanguageCapabilities {
+  /** Python has no do-while, and no spelling of one that reads as Python. */
+  doWhile: boolean;
+}
+
 export type Tier = 'easy' | 'medium' | 'hard';
 
 const IDENTIFIERS = [
