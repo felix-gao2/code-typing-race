@@ -34,9 +34,14 @@ export function createRng(seed: number): Rng {
   };
 
   const pick = <T,>(items: readonly T[]): T => {
+    if (items.length === 0) {
+      throw new Error('rng.pick: called with an empty array');
+    }
     const item = items[int(0, items.length - 1)];
     if (item === undefined) {
-      throw new Error('rng.pick: called with an empty array');
+      // Unreachable for a dense array; the index is drawn within bounds. Present
+      // because noUncheckedIndexedAccess widens the element type to T | undefined.
+      throw new Error('rng.pick: drew an index outside the array');
     }
     return item;
   };
