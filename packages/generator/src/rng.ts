@@ -33,7 +33,7 @@ export function createRng(seed: number): Rng {
     return min + Math.floor(float() * (max - min + 1));
   };
 
-  const pick = <T,>(items: readonly T[]): T => {
+  const pick = <T>(items: readonly T[]): T => {
     if (items.length === 0) {
       throw new Error('rng.pick: called with an empty array');
     }

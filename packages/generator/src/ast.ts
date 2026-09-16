@@ -36,9 +36,6 @@ export type Program = Stmt[];
 /** A statement that owns a body, and therefore a scope. */
 export function isBlock(stmt: Stmt): boolean {
   return (
-    stmt.kind === 'if' ||
-    stmt.kind === 'for' ||
-    stmt.kind === 'while' ||
-    stmt.kind === 'doWhile'
+    stmt.kind === 'if' || stmt.kind === 'for' || stmt.kind === 'while' || stmt.kind === 'doWhile'
   );
 }

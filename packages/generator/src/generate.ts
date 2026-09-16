@@ -1,12 +1,4 @@
-import type {
-  BinaryOp,
-  CompareOp,
-  CompoundOp,
-  Expr,
-  Program,
-  Stmt,
-  ValueType,
-} from './ast.ts';
+import type { BinaryOp, CompareOp, CompoundOp, Expr, Program, Stmt, ValueType } from './ast.ts';
 import { isBlock } from './ast.ts';
 import type { GeneratorConfig } from './config.ts';
 import type { Rng } from './rng.ts';
@@ -92,12 +84,7 @@ export function generateProgram(
  * Two attempts at not repeating the previous statement's shape. Bounded, so a
  * scope holding exactly one variable still terminates — it just repeats.
  */
-function genStatement(
-  ctx: Ctx,
-  depth: number,
-  recent: readonly Stmt[],
-  allowBlock = true,
-): Stmt {
+function genStatement(ctx: Ctx, depth: number, recent: readonly Stmt[], allowBlock = true): Stmt {
   let stmt = genStatementOnce(ctx, depth, allowBlock);
   for (let attempt = 0; attempt < 2 && repeatsShape(recent, stmt); attempt += 1) {
     stmt = genStatementOnce(ctx, depth, allowBlock);
@@ -152,16 +139,7 @@ function genStatementOnce(ctx: Ctx, depth: number, allowBlock: boolean): Stmt {
 }
 
 function genBlock(ctx: Ctx, depth: number): Stmt {
-  const kind = ctx.rng.pick([
-    'if',
-    'if',
-    'if',
-    'for',
-    'for',
-    'for',
-    'while',
-    'doWhile',
-  ] as const);
+  const kind = ctx.rng.pick(['if', 'if', 'if', 'for', 'for', 'for', 'while', 'doWhile'] as const);
 
   if (kind === 'for') {
     const variable = loopVariable(ctx);
@@ -298,20 +276,14 @@ function pickDeclarationType(ctx: Ctx): ValueType {
  * has ever typed on purpose. It's a list because a comparison inside an
  * assignment has two names to keep out at once.
  */
-function genExpr(
-  ctx: Ctx,
-  type: ValueType,
-  depth: number,
-  exclude: readonly string[] = [],
-): Expr {
+function genExpr(ctx: Ctx, type: ValueType, depth: number, exclude: readonly string[] = []): Expr {
   if (type === 'boolean') {
     return genBooleanExpr(ctx, exclude);
   }
 
   const numeric = type === 'int' || type === 'double';
   if (numeric && depth < 1 && ctx.rng.chance(ctx.config.operatorChance)) {
-    const ops: readonly BinaryOp[] =
-      type === 'int' ? ['+', '-', '*', '%'] : ['+', '-', '*'];
+    const ops: readonly BinaryOp[] = type === 'int' ? ['+', '-', '*', '%'] : ['+', '-', '*'];
     const op = ctx.rng.pick(ops);
     const degenerate = op === '*' || op === '%';
     const left = genExpr(ctx, type, depth + 1, exclude);
