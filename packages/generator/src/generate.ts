@@ -7,6 +7,7 @@ import type {
   Stmt,
   ValueType,
 } from './ast.ts';
+import { isBlock } from './ast.ts';
 import type { GeneratorConfig } from './config.ts';
 import type { Rng } from './rng.ts';
 import { SymbolTable, type Variable } from './symbol-table.ts';
@@ -34,7 +35,7 @@ const DECLARATION_TYPES: readonly ValueType[] = [
 ];
 
 /** Nesting gets rarer the deeper it goes, so depth 3 stays a treat. */
-const NESTING_DECAY = 0.6;
+const NESTING_DECAY = 0.45;
 
 /** Operands inside an expression stay small: `i * 2`, not `i * 87`. */
 const OPERAND_MAX = 12;
@@ -69,10 +70,18 @@ export function generateProgram(
   let rendered = 0;
 
   do {
-    // Near the budget, only single lines are allowed. A block generated at the
-    // very end can add 100+ characters and blow straight past the tier.
+    // Near the budget, only single lines are allowed: a block generated at the
+    // end can add 100+ characters and blow straight past the tier.
     const roomForBlock = rendered < config.charBudget * 0.8;
-    program.push(genStatement(ctx, 0, program[program.length - 1], roomForBlock));
+    let stmt = genStatement(ctx, 0, program, roomForBlock);
+
+    // Even inside the window a block can overshoot badly, and the length of
+    // one is only knowable after generating it. Re-roll it as a single line.
+    if (isBlock(stmt) && render([...program, stmt]).length > config.charBudget * 1.2) {
+      stmt = genStatement(ctx, 0, program, false);
+    }
+
+    program.push(stmt);
     rendered = render(program).length;
   } while (rendered < config.charBudget);
 
@@ -86,26 +95,29 @@ export function generateProgram(
 function genStatement(
   ctx: Ctx,
   depth: number,
-  previous?: Stmt,
+  recent: readonly Stmt[],
   allowBlock = true,
 ): Stmt {
   let stmt = genStatementOnce(ctx, depth, allowBlock);
-  for (let attempt = 0; attempt < 2 && repeatsShape(previous, stmt); attempt += 1) {
+  for (let attempt = 0; attempt < 2 && repeatsShape(recent, stmt); attempt += 1) {
     stmt = genStatementOnce(ctx, depth, allowBlock);
   }
-  return stmt;
+  // Still repeating means the scope has nothing else to talk about. Declaring
+  // introduces a fresh name, which is both a new subject and more material.
+  return repeatsShape(recent, stmt) ? genDeclaration(ctx) : stmt;
 }
 
 /**
- * Two statements in a row about the same variable read as filler, whatever the
- * kinds are — `step = 11; step -= 11;` or three prints of the same name.
+ * Statements about the same variable in quick succession read as filler —
+ * `step = 11; step -= 11;`, or the `n = 26; count = 8.3; n = 22;` ping-pong
+ * that comes from having only two variables to talk about.
  */
-function repeatsShape(previous: Stmt | undefined, next: Stmt): boolean {
-  if (previous === undefined) {
+function repeatsShape(recent: readonly Stmt[], next: Stmt): boolean {
+  const name = subject(next);
+  if (name === undefined) {
     return false;
   }
-  const before = subject(previous);
-  return before !== undefined && before === subject(next);
+  return recent.slice(-2).some((stmt) => subject(stmt) === name);
 }
 
 /** The variable a statement is about, if it's about one. */
@@ -128,7 +140,10 @@ function genStatementOnce(ctx: Ctx, depth: number, allowBlock: boolean): Stmt {
   // variable in scope, every body is that variable again — so declarations
   // come first as a consequence, not as a quota.
   const ready = numericVars(ctx).length > 0 && ctx.table.visible().length > 1;
-  const chance = ctx.config.blockChance * NESTING_DECAY ** depth;
+  // Scaled by how much there is to work with, so early blocks stay rare
+  // without a rule saying "declare three things first".
+  const material = Math.min(1, ctx.table.visible().length / 3);
+  const chance = ctx.config.blockChance * NESTING_DECAY ** depth * material;
 
   if (canNest && ready && ctx.rng.chance(chance)) {
     return genBlock(ctx, depth);
@@ -137,7 +152,16 @@ function genStatementOnce(ctx: Ctx, depth: number, allowBlock: boolean): Stmt {
 }
 
 function genBlock(ctx: Ctx, depth: number): Stmt {
-  const kind = ctx.rng.pick(['if', 'if', 'for', 'for', 'while', 'doWhile'] as const);
+  const kind = ctx.rng.pick([
+    'if',
+    'if',
+    'if',
+    'for',
+    'for',
+    'for',
+    'while',
+    'doWhile',
+  ] as const);
 
   if (kind === 'for') {
     const variable = loopVariable(ctx);
@@ -162,6 +186,20 @@ function genBlock(ctx: Ctx, depth: number): Stmt {
   const condition = genCondition(ctx);
   ctx.table.push();
   const body = genBody(ctx, depth);
+
+  // A while whose body never touches its condition is an infinite loop, and it
+  // reads as a mistake even though nobody runs these. Guarantee one line that
+  // moves the variable the condition tests.
+  const tested = conditionSubject(condition);
+  if (
+    kind !== 'if' &&
+    tested !== undefined &&
+    !ctx.loopVariables.includes(tested.name) &&
+    !body.some((stmt) => subject(stmt) === tested.name)
+  ) {
+    body.push(mutate(ctx, tested));
+  }
+
   ctx.table.pop();
 
   return { kind, condition, body };
@@ -173,7 +211,7 @@ function genBody(ctx: Ctx, depth: number): Stmt[] {
   const count = ctx.rng.int(min, max);
   const body: Stmt[] = [];
   for (let i = 0; i < count; i += 1) {
-    body.push(genStatement(ctx, depth + 1, body[body.length - 1]));
+    body.push(genStatement(ctx, depth + 1, body));
   }
   return body;
 }
@@ -204,17 +242,19 @@ function genSimple(ctx: Ctx): Stmt {
       return {
         kind: 'assign',
         name: target.name,
-        value: genExpr(ctx, target.type, 0, target.name),
+        value: genExpr(ctx, target.type, 0, [target.name]),
       };
     }
     case 'compound': {
       const target = ctx.rng.pick(numeric);
       const op = ctx.rng.pick(['+=', '-=', '*='] as const satisfies readonly CompoundOp[]);
+      const value = genExpr(ctx, target.type, 1, [target.name]);
       return {
         kind: 'compound',
         name: target.name,
         op,
-        value: genExpr(ctx, target.type, 1, target.name),
+        // `count *= 1;` is a statement that does nothing.
+        value: op === '*=' ? atLeastTwo(ctx, value) : value,
       };
     }
     case 'print': {
@@ -229,7 +269,9 @@ function genSimple(ctx: Ctx): Stmt {
 function genDeclaration(ctx: Ctx): Stmt {
   const type = pickDeclarationType(ctx);
   const name = freshName(ctx);
-  const init = genExpr(ctx, type, 0);
+  // Depth 1 disables arithmetic: declarations read `int n = 27;`, and the
+  // operators live in the assignments and compounds instead.
+  const init = genExpr(ctx, type, 1);
   ctx.table.declare(name, type);
   return { kind: 'declare', name, type, init };
 }
@@ -251,10 +293,17 @@ function pickDeclarationType(ctx: Ctx): ValueType {
 }
 
 /**
- * `exclude` keeps a variable off the right-hand side of its own assignment.
- * Without it you get `mode = mode;`, which no one has ever typed on purpose.
+ * `exclude` keeps variables off the right-hand side of their own statement.
+ * Without it you get `mode = mode;` and `rate = limit < limit;`, which nobody
+ * has ever typed on purpose. It's a list because a comparison inside an
+ * assignment has two names to keep out at once.
  */
-function genExpr(ctx: Ctx, type: ValueType, depth: number, exclude?: string): Expr {
+function genExpr(
+  ctx: Ctx,
+  type: ValueType,
+  depth: number,
+  exclude: readonly string[] = [],
+): Expr {
   if (type === 'boolean') {
     return genBooleanExpr(ctx, exclude);
   }
@@ -264,6 +313,7 @@ function genExpr(ctx: Ctx, type: ValueType, depth: number, exclude?: string): Ex
     const ops: readonly BinaryOp[] =
       type === 'int' ? ['+', '-', '*', '%'] : ['+', '-', '*'];
     const op = ctx.rng.pick(ops);
+    const degenerate = op === '*' || op === '%';
     const left = genExpr(ctx, type, depth + 1, exclude);
     const generated = genExpr(ctx, type, depth + 1, exclude);
     // `i - i` and `48 % 48` are noise, and `x % x` is a division by nothing.
@@ -271,9 +321,9 @@ function genExpr(ctx: Ctx, type: ValueType, depth: number, exclude?: string): Ex
     return {
       kind: 'binary',
       op,
-      left,
-      // `* 1` does nothing and `% 1` is always zero.
-      right: op === '*' || op === '%' ? atLeastTwo(ctx, right) : right,
+      // `1 * 12` and `% 1` are arithmetic that does nothing.
+      left: degenerate ? atLeastTwo(ctx, left) : left,
+      right: degenerate ? atLeastTwo(ctx, right) : right,
     };
   }
 
@@ -325,7 +375,7 @@ function otherThan(ctx: Ctx, type: ValueType, clash: Expr): Expr {
 }
 
 /** `boolean ok = rate < n;` is the shape worth generating — not `= true`. */
-function genBooleanExpr(ctx: Ctx, exclude?: string): Expr {
+function genBooleanExpr(ctx: Ctx, exclude: readonly string[] = []): Expr {
   const numeric = available(numericVars(ctx), exclude);
   if (numeric.length > 0 && ctx.rng.chance(0.8)) {
     return comparison(ctx, ctx.rng.pick(numeric), exclude);
@@ -339,7 +389,7 @@ function genBooleanExpr(ctx: Ctx, exclude?: string): Expr {
   return { kind: 'boolean', value: ctx.rng.chance(0.5) };
 }
 
-function comparison(ctx: Ctx, left: Variable, exclude?: string): Expr {
+function comparison(ctx: Ctx, left: Variable, exclude: readonly string[] = []): Expr {
   const op = ctx.rng.pick([
     '<',
     '<=',
@@ -353,7 +403,7 @@ function comparison(ctx: Ctx, left: Variable, exclude?: string): Expr {
     op,
     left: { kind: 'ref', name: left.name, type: left.type },
     // Excluding the left side stops `i == i`.
-    right: genExpr(ctx, left.type, 1, exclude ?? left.name),
+    right: genExpr(ctx, left.type, 1, [...exclude, left.name]),
   };
 }
 
@@ -425,10 +475,8 @@ function writable(ctx: Ctx, variables: Variable[]): Variable[] {
   return variables.filter((v) => !ctx.loopVariables.includes(v.name));
 }
 
-function available(variables: Variable[], exclude?: string): Variable[] {
-  return exclude === undefined
-    ? variables
-    : variables.filter((variable) => variable.name !== exclude);
+function available(variables: Variable[], exclude: readonly string[]): Variable[] {
+  return variables.filter((variable) => !exclude.includes(variable.name));
 }
 
 function freshName(ctx: Ctx): string {
@@ -460,4 +508,33 @@ function loopVariable(ctx: Ctx): string {
     suffix += 1;
   }
   return `i${suffix}`;
+}
+
+/** The variable a condition tests, when it tests one. */
+function conditionSubject(condition: Expr): Variable | undefined {
+  if (condition.kind === 'compare' && condition.left.kind === 'ref') {
+    return { name: condition.left.name, type: condition.left.type };
+  }
+  if (condition.kind === 'ref') {
+    return { name: condition.name, type: condition.type };
+  }
+  return undefined;
+}
+
+/** One statement that moves a variable, so a loop can plausibly end. */
+function mutate(ctx: Ctx, target: Variable): Stmt {
+  if (target.type === 'int' || target.type === 'double') {
+    const op = ctx.rng.pick(['+=', '-='] as const satisfies readonly CompoundOp[]);
+    return {
+      kind: 'compound',
+      name: target.name,
+      op,
+      value: genLiteral(ctx, target.type, true),
+    };
+  }
+  return {
+    kind: 'assign',
+    name: target.name,
+    value: genExpr(ctx, target.type, 1, [target.name]),
+  };
 }
