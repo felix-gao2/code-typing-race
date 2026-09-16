@@ -1,0 +1,7 @@
+node_modules
+pnpm-lock.yaml
+dist
+coverage
+
+# Prose is hand-wrapped; leave it alone.
+*.md
