@@ -8,7 +8,9 @@ const typed = (text: string): string =>
 
 // Shaped like real generator output: braces dedent, Python does not.
 const JAVA = ['int count = 5;', '', 'if (count >= 10) {', '    count -= 4;', '}'].join('\n');
-const PYTHON = ['count = 5', '', 'if count >= 10:', '    count -= 4', '    print(count)'].join('\n');
+const PYTHON = ['count = 5', '', 'if count >= 10:', '    count -= 4', '    print(count)'].join(
+  '\n',
+);
 
 describe('mapTarget', () => {
   it('types nothing for empty or whitespace-only text', () => {
