@@ -92,10 +92,10 @@ describe('generateSnippet', () => {
         'valid = 7.1 - 9.6;',
         '',
         'if (count >= 10) {',
-        '    valid *= 12.0;',
+        '    valid *= 12;',
         '}',
         '',
-        'while (valid <= 5.0) {',
+        'while (valid <= 5) {',
         '    count = 5;',
         '    valid += 0.6;',
         '}',
@@ -252,6 +252,19 @@ describe('the TypeScript printer', () => {
     // Without this, the test above would also pass if the printer stopped
     // emitting equality comparisons altogether.
     expect(snippets.some(({ text }) => /[=!]==/.test(text))).toBe(true);
+  });
+
+  it('never emits a whole-number double literal', () => {
+    // `12.0` is decoration in TypeScript, where inference makes `12` the same
+    // number. Java keeps the suffix, so this assertion is TypeScript-only.
+    for (const { text, tier, seed } of snippets) {
+      expect(text, `${tier}/${seed}`).not.toMatch(/\d+\.0(?!\d)/);
+    }
+  });
+
+  it('still emits fractional double literals across the corpus', () => {
+    // Without this, the test above would also pass if doubles disappeared.
+    expect(snippets.some(({ text }) => /\d+\.[1-9]/.test(text))).toBe(true);
   });
 
   it('never leaks Java syntax', () => {

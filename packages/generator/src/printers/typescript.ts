@@ -82,8 +82,14 @@ function printExpr(expr: Expr): string {
   switch (expr.kind) {
     case 'int':
       return String(expr.value);
-    case 'double':
-      return (expr.tenths / 10).toFixed(1);
+    case 'double': {
+      // `12.0` is valid TS, but inference makes the suffix decoration rather
+      // than type information — `let x = 12` is a number either way — and no
+      // TypeScript developer types it. Go is the opposite case: there `:= 12.0`
+      // is what makes the variable a float64, so its printer keeps the suffix.
+      const value = expr.tenths / 10;
+      return Number.isInteger(value) ? String(value) : value.toFixed(1);
+    }
     case 'boolean':
       return expr.value ? 'true' : 'false';
     case 'string':

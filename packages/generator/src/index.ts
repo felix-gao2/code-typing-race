@@ -14,7 +14,7 @@ export { TIERS } from './config.ts';
  * identity is (generatorVersion, language, tier, seed), so a silent change
  * would leave ghosts replaying against text that no longer exists.
  */
-export const GENERATOR_VERSION = 1;
+export const GENERATOR_VERSION = 2;
 
 export const LANGUAGES = ['java', 'typescript'] as const;
 export type Language = (typeof LANGUAGES)[number];
