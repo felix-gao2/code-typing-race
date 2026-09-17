@@ -410,12 +410,12 @@ describe('the Python printer', () => {
     let blocks = 0;
 
     for (const { text, lines, seed } of snippets) {
-      const lines = text.split('\n');
-      lines.forEach((line, index) => {
+      const rows = text.split('\n');
+      rows.forEach((line, index) => {
         if (!line.trimEnd().endsWith(':')) return;
         blocks += 1;
         const lead = line.length - line.trimStart().length;
-        const next = lines[index + 1];
+        const next = rows[index + 1];
         expect(next, `${lines}/${seed}: block header is the last line`).toBeDefined();
         const nextLead = next === undefined ? -1 : next.length - next.trimStart().length;
         expect(nextLead, `${lines}/${seed}: ${line.trim()} has no indented body`).toBe(lead + 4);
