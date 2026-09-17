@@ -1,4 +1,4 @@
-import { generateSnippet, type Language, type Tier } from '@ctr/generator';
+import { generateSnippet, type Language } from '@ctr/generator';
 import {
   DEFAULT_MODE,
   isFinished,
@@ -33,15 +33,18 @@ function randomSeed(): number {
   return crypto.getRandomValues(new Uint32Array(1))[0] ?? 1;
 }
 
-export function useRun(language: Language, tier: Tier): Run {
+export function useRun(language: Language, lines: number): Run {
   const [{ seed, attempt }, setIdentity] = useState(() => ({ seed: randomSeed(), attempt: 0 }));
 
-  const text = useMemo(() => generateSnippet({ seed, language, tier }), [seed, language, tier]);
+  const text = useMemo(
+    () => generateSnippet({ seed, language, lines }),
+    [seed, language, lines],
+  );
 
   // A run is identified by everything that would change the text, plus the
   // attempt — retrying the same snippet has to start a new run even though
   // nothing about the text moved.
-  const key = `${language}:${tier}:${seed}:${attempt}`;
+  const key = `${language}:${lines}:${seed}:${attempt}`;
   const [run, setRun] = useState(() => ({ key, state: start(text, DEFAULT_MODE) }));
   if (run.key !== key) {
     // Resetting during render rather than in an effect, so no frame is ever
