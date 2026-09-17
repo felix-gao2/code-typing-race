@@ -1,9 +1,7 @@
-import { LANGUAGES, TIERS, type Language, type Tier } from '@ctr/generator';
+import { isLinePreset, LANGUAGES, LINE_PRESETS, type Language } from '@ctr/generator';
 import { useState } from 'react';
 import { TypingSurface } from './solo/TypingSurface.tsx';
 import { useRun } from './solo/useRun.ts';
-
-const TIER_NAMES = Object.keys(TIERS) as Tier[];
 
 /**
  * The deliberately ugly solo page: a snippet, a text box and some numbers.
@@ -11,13 +9,14 @@ const TIER_NAMES = Object.keys(TIERS) as Tier[];
  * here — the point of this version is to be playable, so the feel questions
  * can be answered by typing rather than by argument.
  *
- * The language and tier pickers are scaffolding. The real page has no mode
- * picker at all; these exist so all three printers can be felt.
+ * The language and length pickers are scaffolding, and exist so all three
+ * printers can be felt. Difficulty is not a setting: every snippet is
+ * generated at the same density, and length is the only thing chosen.
  */
 export function App() {
   const [language, setLanguage] = useState<Language>('java');
-  const [tier, setTier] = useState<Tier>('medium');
-  const run = useRun(language, tier);
+  const [lines, setLines] = useState<number>(20);
+  const run = useRun(language, lines);
   const { metrics } = run;
 
   return (
@@ -35,16 +34,34 @@ export function App() {
           ))}
         </select>
         <select
-          value={tier}
-          onChange={(event) => setTier(event.target.value as Tier)}
-          aria-label="Difficulty"
+          value={isLinePreset(lines) ? lines : 'custom'}
+          onChange={(event) => {
+            if (event.target.value !== 'custom') {
+              setLines(Number(event.target.value));
+            }
+          }}
+          aria-label="Length"
         >
-          {TIER_NAMES.map((name) => (
-            <option key={name} value={name}>
-              {name}
+          {LINE_PRESETS.map((count) => (
+            <option key={count} value={count}>
+              {count} lines
             </option>
           ))}
+          <option value="custom">custom</option>
         </select>
+        <input
+          type="number"
+          min={1}
+          value={lines}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (Number.isInteger(next) && next >= 1) {
+              setLines(next);
+            }
+          }}
+          aria-label="Lines"
+        />
+        {!isLinePreset(lines) && <span className="hint">custom · unranked</span>}
         <span className="seed">seed {run.seed}</span>
         <span className="hint">tab · new snippet &nbsp; esc · retry this one</span>
       </header>
