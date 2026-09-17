@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { TIERS, type Tier } from './config.ts';
 import { generateSnippet, LANGUAGES, type Language } from './index.ts';
 
 /**
@@ -22,23 +21,23 @@ const DECLARATION_PATTERNS: Record<
   },
 };
 
-const TIER_NAMES: Tier[] = ['easy', 'medium', 'hard'];
+const LINE_COUNTS = [10, 20, 35];
 const SEEDS = Array.from({ length: 300 }, (_, i) => i);
 
-function everySnippet(language: Language): { tier: Tier; seed: number; text: string }[] {
-  return TIER_NAMES.flatMap((tier) =>
-    SEEDS.map((seed) => ({ tier, seed, text: generateSnippet({ seed, language, tier }) })),
+function everySnippet(language: Language): { lines: number; seed: number; text: string }[] {
+  return LINE_COUNTS.flatMap((lines) =>
+    SEEDS.map((seed) => ({ lines, seed, text: generateSnippet({ seed, language, lines }) })),
   );
 }
 
 describe('generateSnippet', () => {
   it('is deterministic for a given seed', () => {
     for (const language of LANGUAGES) {
-      for (const tier of TIER_NAMES) {
+      for (const lines of LINE_COUNTS) {
         for (const seed of [0, 1, 7, 99, 12345]) {
-          const first = generateSnippet({ seed, language, tier });
-          const second = generateSnippet({ seed, language, tier });
-          expect(second, `${language}/${tier}/${seed}`).toBe(first);
+          const first = generateSnippet({ seed, language, lines });
+          const second = generateSnippet({ seed, language, lines });
+          expect(second, `${language}/${lines}/${seed}`).toBe(first);
         }
       }
     }
@@ -47,7 +46,7 @@ describe('generateSnippet', () => {
   it('gives different seeds different text', () => {
     for (const language of LANGUAGES) {
       const texts = SEEDS.slice(0, 50).map((seed) =>
-        generateSnippet({ seed, language, tier: 'medium' }),
+        generateSnippet({ seed, language, lines: 20 }),
       );
       expect(new Set(texts).size, language).toBe(texts.length);
     }
@@ -57,8 +56,8 @@ describe('generateSnippet', () => {
    * These are the version tripwire: if generated output changes at all, they
    * fail, and GENERATOR_VERSION has to be bumped in the same commit.
    */
-  it('matches the pinned Java output for seed 1, easy', () => {
-    expect(generateSnippet({ seed: 1, language: 'java', tier: 'easy' })).toBe(
+  it('matches the pinned Java output for seed 1, 10 lines', () => {
+    expect(generateSnippet({ seed: 1, language: 'java', lines: 10 })).toBe(
       [
         'double valid = 11.7;',
         'String size = "lrf";',
@@ -66,21 +65,16 @@ describe('generateSnippet', () => {
         'valid = 7.1 - 9.6;',
         '',
         'if (count >= 10) {',
-        '    valid *= 12.0;',
+        '    System.out.println(count);',
         '}',
         '',
-        'while (valid <= 5.0) {',
-        '    count = 5;',
-        '    valid += 0.6;',
-        '}',
-        '',
-        'System.out.println(count);',
+        'boolean buf = false;',
       ].join('\n'),
     );
   });
 
-  it('matches the pinned Java output for seed 42, medium', () => {
-    expect(generateSnippet({ seed: 42, language: 'java', tier: 'medium' })).toBe(
+  it('matches the pinned Java output for seed 42, 20 lines', () => {
+    expect(generateSnippet({ seed: 42, language: 'java', lines: 20 })).toBe(
       [
         'String delta = "nj";',
         'int buf = 1;',
@@ -94,17 +88,20 @@ describe('generateSnippet', () => {
         '    double rate = 5.8;',
         '}',
         '',
-        'delta = "ja0";',
-        'buf += 8;',
-        'boolean score = buf > 1;',
-        'System.out.println(delta);',
-        'buf = 5 * 11;',
+        'for (int i = 0; i < buf; i++) {',
+        '    do {',
+        '        System.out.println(delta);',
+        '        buf -= 9;',
+        '    } while (i != buf);',
+        '    buf -= i;',
+        '    delta = "xl2";',
+        '}',
       ].join('\n'),
     );
   });
 
-  it('matches the pinned TypeScript output for seed 1, easy', () => {
-    expect(generateSnippet({ seed: 1, language: 'typescript', tier: 'easy' })).toBe(
+  it('matches the pinned TypeScript output for seed 1, 10 lines', () => {
+    expect(generateSnippet({ seed: 1, language: 'typescript', lines: 10 })).toBe(
       [
         'let valid = 11.7;',
         'let size = "lrf";',
@@ -112,21 +109,16 @@ describe('generateSnippet', () => {
         'valid = 7.1 - 9.6;',
         '',
         'if (count >= 10) {',
-        '    valid *= 12;',
+        '    console.log(count);',
         '}',
         '',
-        'while (valid <= 5) {',
-        '    count = 5;',
-        '    valid += 0.6;',
-        '}',
-        '',
-        'console.log(count);',
+        'let buf = false;',
       ].join('\n'),
     );
   });
 
-  it('matches the pinned TypeScript output for seed 45, medium', () => {
-    expect(generateSnippet({ seed: 45, language: 'typescript', tier: 'medium' })).toBe(
+  it('matches the pinned TypeScript output for seed 45, 20 lines', () => {
+    expect(generateSnippet({ seed: 45, language: 'typescript', lines: 20 })).toBe(
       [
         'let rate = "mb";',
         'let limit = false;',
@@ -152,8 +144,8 @@ describe('generateSnippet', () => {
     );
   });
 
-  it('matches the pinned Python output for seed 1, easy', () => {
-    expect(generateSnippet({ seed: 1, language: 'python', tier: 'easy' })).toBe(
+  it('matches the pinned Python output for seed 1, 10 lines', () => {
+    expect(generateSnippet({ seed: 1, language: 'python', lines: 10 })).toBe(
       [
         'valid = 11.7',
         'size = "lrf"',
@@ -161,22 +153,16 @@ describe('generateSnippet', () => {
         'valid = 7.1 - 9.6',
         '',
         'if count >= 10:',
-        '    valid *= 12.0',
+        '    print(count)',
         '',
-        'for i in range(count):',
-        '    valid = 11.6',
-        '',
-        'if valid >= 10.4:',
-        '    count -= 4',
-        '',
-        'count *= 9',
-        'ok = 12',
+        'buf = False',
+        'size = "y7y"',
       ].join('\n'),
     );
   });
 
-  it('matches the pinned Python output for seed 42, medium', () => {
-    expect(generateSnippet({ seed: 42, language: 'python', tier: 'medium' })).toBe(
+  it('matches the pinned Python output for seed 42, 20 lines', () => {
+    expect(generateSnippet({ seed: 42, language: 'python', lines: 20 })).toBe(
       [
         'delta = "nj"',
         'buf = 1',
@@ -193,13 +179,11 @@ describe('generateSnippet', () => {
         '        print(buf)',
         '    buf += 9',
         '',
-        'for i in range(3):',
-        '    buf -= i',
-        '    valid = i',
-        '    for j in range(11):',
-        '        buf = i',
-        '        valid += i',
-        '        flag = True',
+        'size = 5.3',
+        'buf = 98',
+        'limit = "pmq"',
+        'size -= 11.3',
+        'print(buf)',
       ].join('\n'),
     );
   });
@@ -214,23 +198,23 @@ describe.each(LANGUAGES)('generated %s', (language) => {
   const snippets = everySnippet(language);
 
   it('indents in multiples of four', () => {
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       for (const line of text.split('\n')) {
         if (line.trim() === '') continue;
         const lead = line.length - line.trimStart().length;
-        expect(lead % 4, `${tier}/${seed}`).toBe(0);
+        expect(lead % 4, `${lines}/${seed}`).toBe(0);
       }
     }
   });
 
   it('never indents by more than one level at a time', () => {
     // Free in a braced language; in Python a skipped level is a syntax error.
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       let previous = 0;
       for (const line of text.split('\n')) {
         if (line.trim() === '') continue;
         const lead = (line.length - line.trimStart().length) / 4;
-        expect(lead, `${tier}/${seed}: jumped from ${previous} to ${lead}`).toBeLessThanOrEqual(
+        expect(lead, `${lines}/${seed}: jumped from ${previous} to ${lead}`).toBeLessThanOrEqual(
           previous + 1,
         );
         previous = lead;
@@ -238,32 +222,27 @@ describe.each(LANGUAGES)('generated %s', (language) => {
     }
   });
 
-  it('stays within a quarter of the tier budget', () => {
-    for (const { text, tier, seed } of snippets) {
-      expect(text.length, `${tier}/${seed} overshot`).toBeLessThanOrEqual(
-        TIERS[tier].charBudget * 1.25,
-      );
-      expect(text.length, `${tier}/${seed} undershot`).toBeGreaterThanOrEqual(
-        TIERS[tier].charBudget * 0.9,
-      );
+  it('lands on exactly the requested line count', () => {
+    for (const { text, lines, seed } of snippets) {
+      expect(text.split('\n').length, `${lines}/${seed}`).toBe(lines);
     }
   });
 
   it('never assigns a variable to itself', () => {
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       for (const line of text.split('\n')) {
         // The semicolon is optional so this still bites in Python.
-        expect(line.trim(), `${tier}/${seed}`).not.toMatch(/^(\w+) = \1;?$/);
+        expect(line.trim(), `${lines}/${seed}`).not.toMatch(/^(\w+) = \1;?$/);
       }
     }
   });
 
   it('never compares a variable with itself', () => {
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       // Paren-free, because Python conditions have no parentheses to anchor on.
       const matches = text.matchAll(/(\w+) (?:[<>]=?|[=!]==?) (\w+)/g);
       for (const match of matches) {
-        expect(match[1], `${tier}/${seed}: ${match[0]}`).not.toBe(match[2]);
+        expect(match[1], `${lines}/${seed}: ${match[0]}`).not.toBe(match[2]);
       }
     }
   });
@@ -274,31 +253,31 @@ describe.each(BRACE_LANGUAGES)('generated %s', (language) => {
   const snippets = everySnippet(language);
 
   it('balances braces', () => {
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       let depth = 0;
       for (const char of text) {
         if (char === '{') depth += 1;
         if (char === '}') depth -= 1;
         expect(
           depth,
-          `${tier}/${seed} closed a brace that was never opened`,
+          `${lines}/${seed} closed a brace that was never opened`,
         ).toBeGreaterThanOrEqual(0);
       }
-      expect(depth, `${tier}/${seed} left a brace open`).toBe(0);
+      expect(depth, `${lines}/${seed} left a brace open`).toBe(0);
     }
   });
 
   it('never emits an empty block body', () => {
-    for (const { text, tier, seed } of snippets) {
-      expect(/\{\s*\n\s*\}/.test(text), `${tier}/${seed} has an empty body`).toBe(false);
+    for (const { text, lines, seed } of snippets) {
+      expect(/\{\s*\n\s*\}/.test(text), `${lines}/${seed} has an empty body`).toBe(false);
     }
   });
 
   it('ends every line with a semicolon or a brace', () => {
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       for (const line of text.split('\n')) {
         if (line.trim() === '') continue;
-        expect(line.trim(), `${tier}/${seed}`).toMatch(/[;{}]$/);
+        expect(line.trim(), `${lines}/${seed}`).toMatch(/[;{}]$/);
       }
     }
   });
@@ -308,7 +287,7 @@ describe.each(BRACE_LANGUAGES)('generated %s', (language) => {
     // `let`. Loop counters are declared in the for-header either way.
     const { declaration, counter } = DECLARATION_PATTERNS[language];
 
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       const declared = new Set<string>();
       for (const match of text.matchAll(declaration)) {
         const name = match[1];
@@ -322,7 +301,7 @@ describe.each(BRACE_LANGUAGES)('generated %s', (language) => {
       for (const match of text.matchAll(/^\s*(\w+) (?:=|\+=|-=|\*=) /gm)) {
         const name = match[1];
         if (name !== undefined) {
-          expect(declared.has(name), `${tier}/${seed}: ${name} assigned but never declared`).toBe(
+          expect(declared.has(name), `${lines}/${seed}: ${name} assigned but never declared`).toBe(
             true,
           );
         }
@@ -335,9 +314,9 @@ describe('the TypeScript printer', () => {
   const snippets = everySnippet('typescript');
 
   it('never emits loose equality', () => {
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       // Matches == and != while stepping over the === and !== containing them.
-      expect(text, `${tier}/${seed}`).not.toMatch(/[^=!<>]==[^=]|![=][^=]/);
+      expect(text, `${lines}/${seed}`).not.toMatch(/[^=!<>]==[^=]|![=][^=]/);
     }
   });
 
@@ -350,8 +329,8 @@ describe('the TypeScript printer', () => {
   it('never emits a whole-number double literal', () => {
     // `12.0` is decoration in TypeScript, where inference makes `12` the same
     // number. Java keeps the suffix, so this assertion is TypeScript-only.
-    for (const { text, tier, seed } of snippets) {
-      expect(text, `${tier}/${seed}`).not.toMatch(/\d+\.0(?!\d)/);
+    for (const { text, lines, seed } of snippets) {
+      expect(text, `${lines}/${seed}`).not.toMatch(/\d+\.0(?!\d)/);
     }
   });
 
@@ -361,8 +340,8 @@ describe('the TypeScript printer', () => {
   });
 
   it('never leaks Java syntax', () => {
-    for (const { text, tier, seed } of snippets) {
-      expect(text, `${tier}/${seed}`).not.toMatch(
+    for (const { text, lines, seed } of snippets) {
+      expect(text, `${lines}/${seed}`).not.toMatch(
         /\bSystem\.out\b|^\s*(?:int|double|String) \w+ =/m,
       );
     }
@@ -377,7 +356,7 @@ describe('the Python printer', () => {
     // property rather than a keyword to grep for.
     const KEYWORDS = new Set(['if', 'while', 'for', 'in', 'range', 'print', 'True', 'False']);
 
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       const assigned = new Set<string>();
 
       for (const raw of text.split('\n')) {
@@ -394,7 +373,7 @@ describe('the Python printer', () => {
           if (KEYWORDS.has(name)) continue;
           expect(
             assigned.has(name),
-            `${tier}/${seed}: ${name} read before assignment in ${line.trim()}`,
+            `${lines}/${seed}: ${name} read before assignment in ${line.trim()}`,
           ).toBe(true);
         }
 
@@ -404,7 +383,7 @@ describe('the Python printer', () => {
           if (assignment?.[2] !== '=') {
             expect(
               assigned.has(target),
-              `${tier}/${seed}: ${target} compounded before assignment`,
+              `${lines}/${seed}: ${target} compounded before assignment`,
             ).toBe(true);
           }
           assigned.add(target);
@@ -417,12 +396,12 @@ describe('the Python printer', () => {
   });
 
   it('never emits a brace, a semicolon or a do-while', () => {
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       // A generated string can spell a keyword by chance — easy/248 produces
       // "do" — so quote contents come out before the keyword check.
       const code = text.replace(/"[^"]*"/g, '""');
-      expect(code, `${tier}/${seed}`).not.toMatch(/[{};]/);
-      expect(code, `${tier}/${seed}`).not.toMatch(/\bdo\b/);
+      expect(code, `${lines}/${seed}`).not.toMatch(/[{};]/);
+      expect(code, `${lines}/${seed}`).not.toMatch(/\bdo\b/);
     }
   });
 
@@ -430,16 +409,16 @@ describe('the Python printer', () => {
     // Without this, the test above would also pass on a program with no blocks.
     let blocks = 0;
 
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       const lines = text.split('\n');
       lines.forEach((line, index) => {
         if (!line.trimEnd().endsWith(':')) return;
         blocks += 1;
         const lead = line.length - line.trimStart().length;
         const next = lines[index + 1];
-        expect(next, `${tier}/${seed}: block header is the last line`).toBeDefined();
+        expect(next, `${lines}/${seed}: block header is the last line`).toBeDefined();
         const nextLead = next === undefined ? -1 : next.length - next.trimStart().length;
-        expect(nextLead, `${tier}/${seed}: ${line.trim()} has no indented body`).toBe(lead + 4);
+        expect(nextLead, `${lines}/${seed}: ${line.trim()} has no indented body`).toBe(lead + 4);
       });
     }
 
@@ -447,10 +426,10 @@ describe('the Python printer', () => {
   });
 
   it('never leaks Java or TypeScript syntax', () => {
-    for (const { text, tier, seed } of snippets) {
+    for (const { text, lines, seed } of snippets) {
       // Same hazard as above: a string could spell `true`.
       const code = text.replace(/"[^"]*"/g, '""');
-      expect(code, `${tier}/${seed}`).not.toMatch(
+      expect(code, `${lines}/${seed}`).not.toMatch(
         /\bSystem\.out\b|\bconsole\.log\b|\blet \w+ =|\b(?:true|false)\b/,
       );
     }
