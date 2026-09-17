@@ -45,15 +45,25 @@ interface Ctx {
   loopVariables: string[];
 }
 
+/** Rendered lines. Rendering is pure, so measuring this way stays deterministic. */
+function lineCount(text: string): number {
+  return text === '' ? 0 : text.split('\n').length;
+}
+
 /**
- * Generates until the rendered program exceeds the tier's character budget.
- * Rendering is pure, so measuring this way stays deterministic.
+ * Generates top-level statements until the program renders to exactly `lines`
+ * lines. Exactly, not approximately: two players racing the same preset have
+ * to type the same amount of work.
+ *
+ * The loop's only bound is the line target. Remove it and generation runs
+ * forever, which is what a timed run will consume when it lands.
  */
 export function generateProgram(
   rng: Rng,
   config: GeneratorConfig,
   caps: LanguageCapabilities,
   render: (program: Program) => string,
+  lines: number,
 ): Program {
   const ctx: Ctx = {
     rng,
@@ -64,23 +74,24 @@ export function generateProgram(
     loopVariables: [],
   };
   const program: Program = [];
-  let rendered = 0;
+  let used = 0;
 
-  do {
-    // Near the budget, only single lines are allowed: a block generated at the
-    // end can add 100+ characters and blow straight past the tier.
-    const roomForBlock = rendered < config.charBudget * 0.8;
+  while (used < lines) {
+    // A block is a header, at least one body line, and outside Python a
+    // closing brace. With less room than that there is nowhere to put one.
+    const roomForBlock = lines - used >= 3;
     let stmt = genStatement(ctx, 0, program, roomForBlock);
 
-    // Even inside the window a block can overshoot badly, and the length of
-    // one is only knowable after generating it. Re-roll it as a single line.
-    if (isBlock(stmt) && render([...program, stmt]).length > config.charBudget * 1.2) {
+    // How long a block runs is only knowable after generating it, and nothing
+    // may overshoot the target. A single line always renders to exactly one,
+    // so re-rolling as one always fits.
+    if (isBlock(stmt) && lineCount(render([...program, stmt])) > lines) {
       stmt = genStatement(ctx, 0, program, false);
     }
 
     program.push(stmt);
-    rendered = render(program).length;
-  } while (rendered < config.charBudget);
+    used = lineCount(render(program));
+  }
 
   return program;
 }
