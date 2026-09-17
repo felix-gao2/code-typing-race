@@ -36,10 +36,7 @@ function randomSeed(): number {
 export function useRun(language: Language, lines: number): Run {
   const [{ seed, attempt }, setIdentity] = useState(() => ({ seed: randomSeed(), attempt: 0 }));
 
-  const text = useMemo(
-    () => generateSnippet({ seed, language, lines }),
-    [seed, language, lines],
-  );
+  const text = useMemo(() => generateSnippet({ seed, language, lines }), [seed, language, lines]);
 
   // A run is identified by everything that would change the text, plus the
   // attempt — retrying the same snippet has to start a new run even though
