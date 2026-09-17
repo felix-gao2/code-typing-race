@@ -1,13 +1,10 @@
 /**
- * Difficulty is derived from config, never measured. Tiers are named presets
- * because snippet identity includes the tier — a freeform config object would
- * fragment identity across arbitrary settings.
- *
- * These numbers are meant to be tuned by reading output, not reasoned about.
+ * Difficulty is not a dimension of this game. Every snippet is generated at
+ * the same density, and the only thing the player chooses is how many lines
+ * they want. These numbers are meant to be tuned by reading output, not
+ * reasoned about.
  */
 export interface GeneratorConfig {
-  /** Rendered characters, after which top-level generation stops. */
-  charBudget: number;
   /** How deeply blocks may nest. 0 means no blocks at all. */
   maxDepth: number;
   /** Probability that a statement is a block rather than a single line. */
@@ -35,8 +32,6 @@ export interface LanguageCapabilities {
   doWhile: boolean;
 }
 
-export type Tier = 'easy' | 'medium' | 'hard';
-
 const IDENTIFIERS = [
   'n',
   'count',
@@ -58,41 +53,31 @@ const IDENTIFIERS = [
   'valid',
 ] as const;
 
-export const TIERS: Record<Tier, GeneratorConfig> = {
-  easy: {
-    charBudget: 180,
-    maxDepth: 1,
-    blockChance: 0.35,
-    reuseRate: 0.4,
-    operatorChance: 0.2,
-    bodyStatements: [1, 2],
-    intMax: 40,
-    doubleTenthsMax: 200,
-    stringLength: [2, 3],
-    identifiers: IDENTIFIERS,
-  },
-  medium: {
-    charBudget: 260,
-    maxDepth: 2,
-    blockChance: 0.55,
-    reuseRate: 0.6,
-    operatorChance: 0.45,
-    bodyStatements: [1, 3],
-    intMax: 99,
-    doubleTenthsMax: 999,
-    stringLength: [2, 3],
-    identifiers: IDENTIFIERS,
-  },
-  hard: {
-    charBudget: 340,
-    maxDepth: 3,
-    blockChance: 0.6,
-    reuseRate: 0.75,
-    operatorChance: 0.65,
-    bodyStatements: [2, 3],
-    intMax: 99,
-    doubleTenthsMax: 999,
-    stringLength: [2, 4],
-    identifiers: IDENTIFIERS,
-  },
+/**
+ * The one density every snippet is generated at. These are the values the old
+ * `medium` tier carried: the tuned middle, and the only setting whose output
+ * has been read across a corpus.
+ */
+export const CONFIG: GeneratorConfig = {
+  maxDepth: 2,
+  blockChance: 0.55,
+  reuseRate: 0.6,
+  operatorChance: 0.45,
+  bodyStatements: [1, 3],
+  intMax: 99,
+  doubleTenthsMax: 999,
+  stringLength: [2, 3],
+  identifiers: IDENTIFIERS,
 };
+
+/**
+ * Lengths the leaderboards are split by. A player may type any line count they
+ * like, but only runs at one of these are ranked — an arbitrary length would
+ * give every run a board of its own.
+ */
+export const LINE_PRESETS = [10, 20, 35] as const;
+export type LinePreset = (typeof LINE_PRESETS)[number];
+
+export function isLinePreset(lines: number): lines is LinePreset {
+  return (LINE_PRESETS as readonly number[]).includes(lines);
+}
