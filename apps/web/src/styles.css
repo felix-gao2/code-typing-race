@@ -1,0 +1,140 @@
+/*
+ * Deliberately ugly. The design pass is its own step — tokens file, typeface,
+ * the three character states and the caret — and it replaces this file
+ * wholesale. Nothing here is meant to survive; it exists so the page can be
+ * played.
+ */
+
+:root {
+  --bg: #15161a;
+  --skipped: #3a3d45;
+  --untyped: #6a6e78;
+  --correct: #d6d9e0;
+  --wrong: #e5484d;
+  --caret: #6ea8fe;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--untyped);
+  font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+}
+
+.page {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  margin-bottom: 2rem;
+}
+
+.bar select {
+  background: transparent;
+  color: var(--untyped);
+  border: 1px solid var(--skipped);
+  padding: 0.2rem 0.4rem;
+  font: inherit;
+}
+
+.seed {
+  color: var(--skipped);
+}
+
+.hint {
+  margin-left: auto;
+  color: var(--skipped);
+}
+
+.surface {
+  position: relative;
+  cursor: text;
+}
+
+.target {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  /* Every character is its own span, so breaking has to be allowed inside a
+     line or a long snippet would push the page sideways. */
+  word-break: break-all;
+}
+
+/* The capture is focused and receives every keystroke, so it cannot be
+   display:none — it is simply placed where it cannot be seen. */
+.capture {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  resize: none;
+}
+
+.char-skipped {
+  color: var(--skipped);
+}
+
+.char-untyped {
+  color: var(--untyped);
+}
+
+.char-correct {
+  color: var(--correct);
+}
+
+.char-wrong {
+  color: var(--wrong);
+  text-decoration: underline;
+}
+
+.caret {
+  display: inline-block;
+  width: 0;
+  border-left: 2px solid var(--caret);
+  height: 1.2em;
+  margin-right: -2px;
+  vertical-align: text-bottom;
+  animation: blink 1s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+.stats {
+  display: flex;
+  gap: 2rem;
+  margin-top: 2.5rem;
+}
+
+.stats-final .stat-value {
+  color: var(--correct);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  color: var(--untyped);
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--skipped);
+}
