@@ -127,19 +127,27 @@ variable of a type and falls back to a literal; entering a block pushes,
 leaving pops. This is what makes variables reappear across a snippet instead of
 every line being an island. Declared-but-unused variables are fine.
 
-**Sizing and naming.** Each tier carries a character budget (~200–350 chars,
-about a one-minute run; the sample above is ~220); top-level generation stops
-once it's exceeded. Identifiers come from a curated word list (`count`,
-`total`, `idx`, `buf`, `tag`, `rate`), not random letters; loop variables nest
-`i`, `j`, `k`.
+**Sizing and naming.** The player picks a length in **lines of code**, and
+generation lands on that count exactly rather than approximately: two players
+racing the same preset must type the same amount of work. Presets are **10, 20
+and 35 lines**; any other count is playable but never ranked. Identifiers come
+from a curated word list (`count`, `total`, `idx`, `buf`, `tag`, `rate`), not
+random letters; loop variables nest `i`, `j`, `k`.
 
-**Difficulty** is derived from config, never measured: nesting depth cap,
-symbol density, operator frequency, identifier length, variable reuse rate.
-Exposed to the user as coarse tiers.
+**There are no difficulty tiers.** Every snippet is generated at one fixed
+density — nesting depth cap, symbol density, operator frequency, variable reuse
+rate — and length is the only thing the player chooses. Difficulty as a second
+axis meant an easy 35-line run and a hard 10-line run were incomparable for no
+gain; a single density makes every run on a board the same kind of work.
+
+**A timed mode is the planned second way to play**: instead of a line count,
+the player picks a duration and types until the clock runs out. Generation has
+no inherent end — the line target is the only thing that stops it — so a timed
+run consumes the same generator without a rewrite. Not built yet.
 
 ### Determinism — non-negotiable
 
-`(seed, language, tier) → snippet text` is pure and reproducible: same inputs,
+`(seed, language, lines) → snippet text` is pure and reproducible: same inputs,
 byte-identical output. Seeded RNG threaded throughout, no global `Math.random`,
 no reliance on map iteration order, timestamps or environment.
 
@@ -147,13 +155,14 @@ This matters because **a snippet is stored as its seed**, not its text — stabl
 IDs for ghosts, tiny storage, and the ability to pre-generate a pool *and*
 generate fresh on demand. Easy upfront, miserable to retrofit.
 
-**Identity is `(generatorVersion, language, tier, seed)`.** A seed alone isn't
+**Identity is `(generatorVersion, language, lines, seed)`.** A seed alone isn't
 an identity: the generator gets tuned constantly, and every tune silently
 changes the text behind every existing seed, so a week-old ghost would replay
 against text that no longer exists.
 
-- `tier` is a named preset (`easy`, `medium`, `hard`), never a freeform config
-  object, or identity fragments across arbitrary configs
+- `lines` is the exact rendered line count, and the ranked ones are the
+  presets 10, 20 and 35 — a custom length is playable but never reaches a
+  board, or every run would get a leaderboard of its own
 - `generatorVersion` is a manually bumped integer exported by the generator
 - **snapshot tests over fixed seeds** — any output change fails CI, forcing a
   deliberate version bump instead of a silent one
@@ -177,7 +186,7 @@ player's; Java already supplies that rigidity while being a language people
 want to practise. Nothing is lost by deferring it.
 
 **More languages can be added at any time, and later is no more expensive than
-now.** Identity is `(generatorVersion, language, tier, seed)`, so a new
+now.** Identity is `(generatorVersion, language, lines, seed)`, so a new
 language only mints new tuples: existing snippets, runs and leaderboards are
 untouched and `generatorVersion` does not move. TypeScript is the proof — it
 was added after Java without changing a byte of Java output. A language costs a
@@ -194,7 +203,7 @@ on server or client, one less runtime to deploy.
 
 ### Build it standalone first
 
-A CLI taking a seed, language and tier, printing to stdout. No server, no
+A CLI taking a seed, language and line count, printing to stdout. No server, no
 database, no frontend. Run it 50 times, read the output, tune until it
 consistently resembles the sample above. Validate by generating thousands of
 seeds in tests and parsing the output with a **real parser as a devDependency
@@ -256,7 +265,7 @@ inside the engine, not the UI.
 that are actually hard and the parts worth pointing at in an interview; built
 inside React components, all of that is lost.
 
-1. **Generator** — `(seed, language, tier) → snippet text`. No dependencies, no
+1. **Generator** — `(seed, language, lines) → snippet text`. No dependencies, no
    I/O, CLI-first, deterministic.
 2. **Typing engine** — `(target text, input events) → per-character state,
    progress, WPM, accuracy, error count`. No DOM, no React, no network. The
@@ -292,7 +301,7 @@ comparable and nothing would distinguish them after the fact.
 
 Two boards, **solo** and **multiplayer**, never mixed — solo gets practised far
 more, so merging would bury every race result. Each is split by **language +
-difficulty tier** so an easy snippet never competes with a symbol-heavy one.
+length preset** so a 10-line run never competes with a 35-line one.
 Within a board: ranked by **WPM**, accuracy as tiebreaker, **≥90% accuracy to
 qualify** (without a floor the top is people spamming at 60%), **one entry per
 player** (their best), in **daily and all-time** variants.
@@ -342,8 +351,8 @@ cross-origin, so Socket.io needs CORS.
 
 **Database** — Postgres on **Neon** with **Drizzle**, which is SQL-shaped so
 leaderboard queries stay readable: "best run per player, ranked by WPM within a
-language and tier" is a window function and should look like one. Tables:
-`snippets` (generator version, language, tier, seed), `runs`, `races`. Not
+language and length" is a window function and should look like one. Tables:
+`snippets` (generator version, language, lines, seed), `runs`, `races`. Not
 MongoDB — the data is relational, and the MERN-gap reason is already covered by
 another project.
 
