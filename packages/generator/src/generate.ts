@@ -77,20 +77,24 @@ export function generateProgram(
   let used = 0;
 
   while (used < lines) {
-    // A block is a header, at least one body line, and outside Python a
-    // closing brace. With less room than that there is nowhere to put one.
-    const roomForBlock = lines - used >= 3;
+    // A block is a header, a body line and outside Python a closing brace,
+    // and the printer puts a blank line before it. Below four there is
+    // nowhere to put one.
+    const roomForBlock = lines - used >= 4;
     let stmt = genStatement(ctx, 0, program, roomForBlock);
+    let total = lineCount(render([...program, stmt]));
 
-    // How long a block runs is only knowable after generating it, and nothing
-    // may overshoot the target. A single line always renders to exactly one,
-    // so re-rolling as one always fits.
-    if (isBlock(stmt) && lineCount(render([...program, stmt])) > lines) {
+    // How long a block runs is only knowable after generating it. Re-roll it
+    // as a single line when it overshoots, and also when it would leave
+    // exactly one line free: the printer separates a block from what follows
+    // with a blank line, so the next statement could not fit in one.
+    if (isBlock(stmt) && (total > lines || lines - total === 1)) {
       stmt = genStatement(ctx, 0, program, false);
+      total = lineCount(render([...program, stmt]));
     }
 
     program.push(stmt);
-    used = lineCount(render(program));
+    used = total;
   }
 
   return program;
