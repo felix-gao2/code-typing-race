@@ -1,13 +1,12 @@
 import { randomInt } from 'node:crypto';
 import { parseArgs } from 'node:util';
-import { TIERS, type Tier } from './config.ts';
 import { generateSnippet, LANGUAGES, type Language } from './index.ts';
 
 const { values } = parseArgs({
   options: {
     seed: { type: 'string', short: 's' },
     lang: { type: 'string', short: 'l', default: 'java' },
-    tier: { type: 'string', short: 't', default: 'medium' },
+    lines: { type: 'string', short: 'L', default: '20' },
     count: { type: 'string', short: 'n', default: '1' },
   },
 });
@@ -17,9 +16,9 @@ if (!LANGUAGES.includes(language)) {
   throw new Error(`unknown language: ${values.lang} (have: ${LANGUAGES.join(', ')})`);
 }
 
-const tier = values.tier as Tier;
-if (!(tier in TIERS)) {
-  throw new Error(`unknown tier: ${values.tier} (have: ${Object.keys(TIERS).join(', ')})`);
+const lines = Number(values.lines);
+if (!Number.isInteger(lines) || lines < 1) {
+  throw new Error(`--lines must be a positive integer, got: ${values.lines}`);
 }
 
 const count = Number(values.count);
@@ -36,9 +35,9 @@ if (!Number.isInteger(baseSeed)) {
 
 for (let i = 0; i < count; i += 1) {
   const seed = baseSeed + i;
-  const snippet = generateSnippet({ seed, language, tier });
+  const snippet = generateSnippet({ seed, language, lines });
   if (count > 1) {
-    console.log(`\n=== seed ${seed} · ${language} · ${tier} · ${snippet.length} chars ===`);
+    console.log(`\n=== seed ${seed} · ${language} · ${lines} lines · ${snippet.length} chars ===`);
   }
   console.log(snippet);
 }
