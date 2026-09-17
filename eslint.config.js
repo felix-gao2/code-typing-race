@@ -1,4 +1,5 @@
 import js from '@eslint/js';
+import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 
@@ -20,7 +21,8 @@ export default tseslint.config(
   { ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**'] },
 
   // `eslint .` only walks .js by default; this is what makes it find the source.
-  { files: ['**/*.{js,ts}'] },
+  // `.tsx` is in the list because the web app is invisible to the linter without it.
+  { files: ['**/*.{js,ts,tsx}'] },
 
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
@@ -65,6 +67,13 @@ export default tseslint.config(
       ],
       'no-restricted-imports': ['error', { paths: FORBIDDEN_IMPORTS }],
     },
+  },
+
+  // The run hook captures timestamps and engine state in event handlers, which
+  // is exactly where a stale closure would hide.
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    extends: [reactHooks.configs.flat.recommended],
   },
 
   // The config file itself is plain JS and outside any package tsconfig.
