@@ -10,7 +10,12 @@ export type RaceEvent =
   | { readonly type: 'leave'; readonly id: string; readonly at: number }
   | { readonly type: 'disconnect'; readonly id: string; readonly at: number }
   | { readonly type: 'reconnect'; readonly id: string; readonly at: number }
-  | { readonly type: 'progress'; readonly id: string; readonly progress: number; readonly at: number }
+  | {
+      readonly type: 'progress';
+      readonly id: string;
+      readonly progress: number;
+      readonly at: number;
+    }
   | { readonly type: 'finish'; readonly id: string; readonly at: number };
 
 export interface CreateRace {
