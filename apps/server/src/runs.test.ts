@@ -63,6 +63,28 @@ describe('parseSolo', () => {
   it('allows a player with no name at all', () => {
     expect(parseSolo(submission({ player: { id: 'p1' } })).player.id).toBe('p1');
   });
+
+  /**
+   * A board query coerces its numbers because a query string has none; a JSON
+   * body has them, so a string here is a client sending the wrong thing.
+   */
+  it('does not coerce a body the way a query string is coerced', () => {
+    expect(() => parseSolo(submission({ seed: '7' }))).toThrow(/seed/);
+    expect(() => parseSolo(submission({ lines: '10' }))).toThrow(/lines/);
+  });
+
+  it('drops a reported result rather than carrying it into the recomputation', () => {
+    const parsed = parseSolo(submission({ wpm: 999, accuracy: 1 }));
+
+    expect(parsed).not.toHaveProperty('wpm');
+    expect(Object.keys(parsed).sort()).toStrictEqual([
+      'events',
+      'language',
+      'lines',
+      'player',
+      'seed',
+    ]);
+  });
 });
 
 describe('verifySolo', () => {
