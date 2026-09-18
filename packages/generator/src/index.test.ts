@@ -64,11 +64,11 @@ describe('generateSnippet', () => {
         'int n = 5;',
         'weight = 29.5;',
         '',
-        'for (int i = 0; i < 10; i++) {',
+        'for (int i = 0; i < n; i++) {',
         '    System.out.println(i);',
         '}',
         '',
-        'System.out.println(n);',
+        'n = 12;',
       ].join('\n'),
     );
   });
@@ -108,11 +108,11 @@ describe('generateSnippet', () => {
         'let n = 5;',
         'weight = 29.5;',
         '',
-        'for (let i = 0; i < 10; i++) {',
+        'for (let i = 0; i < n; i++) {',
         '    console.log(i);',
         '}',
         '',
-        'console.log(n);',
+        'n = 12;',
       ].join('\n'),
     );
   });
@@ -130,16 +130,16 @@ describe('generateSnippet', () => {
         '        valid = true;',
         '        score -= 1;',
         '    }',
-        '    name = "q7";',
-        '    score += 5;',
+        '    console.log(name);',
+        '    score += 8;',
         '} while (score < 1);',
         '',
-        'valid = score !== 12;',
+        'valid = score >= 2;',
+        'name = "nn4";',
         '',
-        'do {',
-        '    let average = 7.9;',
-        '    score -= 2;',
-        '} while (score <= 5);',
+        'for (let i = 0; i < 9; i++) {',
+        '    name = "noi";',
+        '}',
       ].join('\n'),
     );
   });
@@ -152,11 +152,11 @@ describe('generateSnippet', () => {
         'n = 5',
         'weight = 29.5',
         '',
-        'for i in range(10):',
+        'for i in range(n):',
         '    print(i)',
         '',
-        'print(weight)',
-        'found = n >= 12',
+        'n = 12',
+        'weight = 86.5',
       ].join('\n'),
     );
   });
@@ -176,14 +176,14 @@ describe('generateSnippet', () => {
         '',
         'while total != 2:',
         '    if total >= 11:',
-        '        print(total)',
+        '        print(label)',
         '    total += 9',
         '',
         'average = 5.3',
         'total = 98',
         'mode = "pmq"',
         'average -= 11.3',
-        'print(label)',
+        'total *= 2',
       ].join('\n'),
     );
   });
@@ -237,10 +237,11 @@ describe.each(LANGUAGES)('generated %s', (language) => {
     }
   });
 
-  it('leaves fewer than 45% of its variables unread', () => {
+  it('leaves fewer than 37% of its variables unread', () => {
     // A ratchet, not a law: real code has some write-only variables, so the
-    // target is not zero. It was 51% before the repair pass and is 40% now,
-    // and this exists so it cannot quietly climb back.
+    // target is not zero. It was 51% before the repair pass, 40% after it, and
+    // is 35% now that generation stops declaring a variable while one is still
+    // unread. This exists so it cannot quietly climb back.
     let declared = 0;
     let unread = 0;
     for (const { text } of snippets) {
@@ -271,7 +272,7 @@ describe.each(LANGUAGES)('generated %s', (language) => {
         if (!read) unread += 1;
       }
     }
-    expect(unread / declared, `${unread} of ${declared}`).toBeLessThan(0.45);
+    expect(unread / declared, `${unread} of ${declared}`).toBeLessThan(0.37);
   });
 
   it('never does arithmetic on two literals', () => {

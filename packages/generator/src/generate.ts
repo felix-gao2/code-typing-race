@@ -43,6 +43,16 @@ interface Ctx {
   /** Loop counters. Readable anywhere, but never assigned to — real code
    * doesn't reassign `i` inside its own loop, and it reads as a mistake. */
   loopVariables: string[];
+  /**
+   * Every name generation has produced a reference to. The declaration cap
+   * reads this to decide whether a type already has a variable nobody is
+   * using.
+   *
+   * A discarded attempt's references are unwound, since a statement that never
+   * reaches the program never read anything. Left in, they vouch for variables
+   * nothing mentions and the cap believes them.
+   */
+  reads: Set<string>;
 }
 
 /** Rendered lines. Rendering is pure, so measuring this way stays deterministic. */
@@ -72,6 +82,7 @@ export function generateProgram(
     table: new SymbolTable(),
     loopDepth: 0,
     loopVariables: [],
+    reads: new Set(),
   };
   const program: Program = [];
   let used = 0;
@@ -81,6 +92,9 @@ export function generateProgram(
     // and the printer puts a blank line before it. Below four there is
     // nowhere to put one.
     const roomForBlock = lines - used >= 4;
+    // A discarded block's references never reach the program, so the reads it
+    // recorded must not outlive it either — the declaration cap believes them.
+    const before = new Set(ctx.reads);
     let stmt = genStatement(ctx, 0, program, roomForBlock);
     let total = lineCount(render([...program, stmt]));
 
@@ -89,6 +103,7 @@ export function generateProgram(
     // exactly one line free: the printer separates a block from what follows
     // with a blank line, so the next statement could not fit in one.
     if (isBlock(stmt) && (total > lines || lines - total === 1)) {
+      ctx.reads = before;
       stmt = genStatement(ctx, 0, program, false);
       total = lineCount(render([...program, stmt]));
     }
@@ -344,13 +359,19 @@ function useTheUnread(ctx: Ctx, program: Program): void {
 }
 
 function genStatement(ctx: Ctx, depth: number, recent: readonly Stmt[], allowBlock = true): Stmt {
+  const before = new Set(ctx.reads);
   let stmt = genStatementOnce(ctx, depth, allowBlock);
   for (let attempt = 0; attempt < 2 && repeatsShape(recent, stmt); attempt += 1) {
+    ctx.reads = new Set(before);
     stmt = genStatementOnce(ctx, depth, allowBlock);
   }
   // Still repeating means the scope has nothing else to talk about. Declaring
   // introduces a fresh name, which is both a new subject and more material.
-  return repeatsShape(recent, stmt) ? genDeclaration(ctx) : stmt;
+  if (repeatsShape(recent, stmt)) {
+    ctx.reads = before;
+    return genDeclaration(ctx);
+  }
+  return stmt;
 }
 
 /**
@@ -409,7 +430,7 @@ function genBlock(ctx: Ctx, depth: number): Stmt {
     const ints = ctx.table.visibleOfType('int');
     const limit: Expr =
       ints.length > 0 && ctx.rng.chance(0.3)
-        ? { kind: 'ref', name: ctx.rng.pick(ints).name, type: 'int' }
+        ? ref(ctx, ctx.rng.pick(ints).name, 'int')
         : { kind: 'int', value: ctx.rng.int(2, 12) };
 
     ctx.table.push();
@@ -465,7 +486,19 @@ function genSimple(ctx: Ctx): Stmt {
   // Weights as repeats: readable, and one rng draw regardless of the mix.
   // Declaring gets rarer as the scope fills, which is what gives a snippet a
   // handful of variables instead of one variable and twenty assignments.
-  const declareWeight = Math.max(1, 7 - visible.length * 2);
+  // The cap: nothing new is declared while something already in scope is
+  // waiting to be read. Per type this does nothing — refusing an int just
+  // declares a double instead, and the snippet gains the dead variable anyway
+  // — so it is the scope as a whole or it is theatre.
+  //
+  // Below three variables it does not apply. Uncapped, a 35-line snippet could
+  // come out with two variables and thirty reassignments between them, which
+  // trades one kind of unreal code for another.
+  //
+  // Something unread means the scope is not empty, so `print` always remains
+  // and the candidate list is never empty.
+  const declareWeight =
+    unread(ctx).length > 0 && assignable.length >= 3 ? 0 : Math.max(1, 7 - visible.length * 2);
   const candidates: string[] = Array<string>(declareWeight).fill('declare');
   if (assignable.length > 0) {
     candidates.push('assign', 'assign', 'assign');
@@ -500,7 +533,7 @@ function genSimple(ctx: Ctx): Stmt {
     }
     case 'print': {
       const target = ctx.rng.pick(visible);
-      return { kind: 'print', value: { kind: 'ref', name: target.name, type: target.type } };
+      return { kind: 'print', value: ref(ctx, target.name, target.type) };
     }
     default:
       return genDeclaration(ctx);
@@ -513,8 +546,30 @@ function genDeclaration(ctx: Ctx): Stmt {
   // Depth 1 disables arithmetic: declarations read `int n = 27;`, and the
   // operators live in the assignments and compounds instead.
   const init = genExpr(ctx, type, 1);
+  // A name comes back around: `freshName` only avoids what is visible, so an
+  // `n` read inside a closed block would otherwise vouch for the next `n`.
+  // This declaration is a new variable and starts unread.
+  ctx.reads.delete(name);
   ctx.table.declare(name, type);
   return { kind: 'declare', name, type, init };
+}
+
+/**
+ * Variables in scope that nothing has read yet.
+ *
+ * Half of every snippet used to be variables nobody looked at, and the reason
+ * is here rather than in any single statement — generation declared a fourth
+ * variable while the third was still untouched, because the only thing
+ * weighing against a declaration was how full the scope was. Repairing that
+ * afterwards reaches only the ones that happen to have a later statement with
+ * a spare literal in it; not creating them has no such gap.
+ *
+ * Loop counters are exempt. A `for (int i = 0; ...)` whose body never names
+ * `i` is ordinary code, and it would otherwise hold up every declaration for
+ * the rest of the block.
+ */
+function unread(ctx: Ctx): Variable[] {
+  return writable(ctx, ctx.table.visible()).filter((variable) => !ctx.reads.has(variable.name));
 }
 
 /**
@@ -570,7 +625,7 @@ function genExpr(ctx: Ctx, type: ValueType, depth: number, exclude: readonly str
       return {
         kind: 'binary',
         op,
-        left: { kind: 'ref', name: ctx.rng.pick(inScope).name, type },
+        left: ref(ctx, ctx.rng.pick(inScope).name, type),
         right: rightOperand,
       };
     }
@@ -580,7 +635,7 @@ function genExpr(ctx: Ctx, type: ValueType, depth: number, exclude: readonly str
 
   const inScope = available(ctx.table.visibleOfType(type), exclude);
   if (inScope.length > 0 && ctx.rng.chance(ctx.config.reuseRate)) {
-    return { kind: 'ref', name: ctx.rng.pick(inScope).name, type };
+    return ref(ctx, ctx.rng.pick(inScope).name, type);
   }
 
   return genLiteral(ctx, type, depth > 0);
@@ -634,7 +689,7 @@ function genBooleanExpr(ctx: Ctx, exclude: readonly string[] = []): Expr {
 
   const booleans = available(ctx.table.visibleOfType('boolean'), exclude);
   if (booleans.length > 0 && ctx.rng.chance(ctx.config.reuseRate)) {
-    return { kind: 'ref', name: ctx.rng.pick(booleans).name, type: 'boolean' };
+    return ref(ctx, ctx.rng.pick(booleans).name, 'boolean');
   }
 
   return { kind: 'boolean', value: ctx.rng.chance(0.5) };
@@ -657,7 +712,7 @@ function comparison(ctx: Ctx, left: Variable, exclude: readonly string[] = []): 
   return {
     kind: 'compare',
     op,
-    left: { kind: 'ref', name: left.name, type: left.type },
+    left: ref(ctx, left.name, left.type),
     // Excluding the left side stops `i == i`.
     right: genExpr(ctx, left.type, 1, [...exclude, left.name]),
   };
@@ -679,7 +734,7 @@ function genCondition(ctx: Ctx): Expr {
     return {
       kind: 'compare',
       op: ctx.rng.pick(EQUALITY_OPS),
-      left: { kind: 'ref', name: target.name, type: 'string' },
+      left: ref(ctx, target.name, 'string'),
       right: genLiteral(ctx, 'string'),
     };
   }
@@ -687,7 +742,7 @@ function genCondition(ctx: Ctx): Expr {
   const booleans = ctx.table.visibleOfType('boolean');
   if (booleans.length > 0) {
     const target = ctx.rng.pick(booleans);
-    return { kind: 'ref', name: target.name, type: 'boolean' };
+    return ref(ctx, target.name, 'boolean');
   }
 
   // Unreachable in practice: blocks are only generated once a number exists.
@@ -733,6 +788,16 @@ function writable(ctx: Ctx, variables: Variable[]): Variable[] {
 
 function available(variables: Variable[], exclude: readonly string[]): Variable[] {
   return variables.filter((variable) => !exclude.includes(variable.name));
+}
+
+/**
+ * A reference, recorded. Every read in a generated program goes through here,
+ * so the declaration cap can ask what has been used without walking the tree
+ * it is still in the middle of building.
+ */
+function ref(ctx: Ctx, name: string, type: ValueType): Expr {
+  ctx.reads.add(name);
+  return { kind: 'ref', name, type };
 }
 
 /**
