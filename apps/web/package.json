@@ -14,7 +14,8 @@
     "@ctr/generator": "workspace:*",
     "@ctr/typing-engine": "workspace:*",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
