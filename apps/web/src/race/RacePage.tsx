@@ -1,42 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { TypingSurface } from '../solo/TypingSurface.tsx';
 import { useTypingRun } from '../typing/useTypingRun.ts';
-import { useRace } from './useRace.ts';
+import { useRace, type Race, type RaceView } from './useRace.ts';
 
 /**
  * The race page, deliberately as plain as the solo one. The design pass owns
  * all of the presentation here; what this proves is the round trip.
+ *
+ * Split in two on purpose: the run cannot be mounted until the server has sent
+ * the snippet, because an empty target is not a run the engine will start. A
+ * hook cannot be conditional, so the waiting happens in a component that has
+ * no run in it.
  */
 export function RacePage({ roomId }: { readonly roomId: string }) {
   const race = useRace(roomId);
-  const view = race.view;
-
-  // Typing is only live while the race is. Before that the target is shown but
-  // the run has not begun; after, it is over.
-  const racing = view?.phase === 'racing';
-  const run = useTypingRun(view?.text ?? '', `${roomId}:${view?.startedAt ?? 'pending'}`);
-
-  // Progress is advisory, so it is sent on change rather than on every key.
-  const sentProgress = useRef(-1);
-  useEffect(() => {
-    if (!racing) {
-      return;
-    }
-    const rounded = Math.round(run.metrics.progress * 100) / 100;
-    if (rounded !== sentProgress.current) {
-      sentProgress.current = rounded;
-      race.reportProgress(rounded);
-    }
-  }, [racing, run.metrics.progress, race]);
-
-  // The keystream goes over exactly once, the moment the run completes.
-  const submitted = useRef(false);
-  useEffect(() => {
-    if (run.finished && !submitted.current) {
-      submitted.current = true;
-      race.submit(run.keystream);
-    }
-  }, [run.finished, run.keystream, race]);
 
   if (race.error !== undefined) {
     return (
@@ -49,13 +26,55 @@ export function RacePage({ roomId }: { readonly roomId: string }) {
     );
   }
 
-  if (view === undefined) {
+  if (race.view === undefined) {
     return (
       <main className="page">
         <p className="hint">{race.connected ? 'joining…' : 'connecting…'}</p>
       </main>
     );
   }
+
+  return <RaceRun race={race} view={race.view} roomId={roomId} />;
+}
+
+function RaceRun({
+  race,
+  view,
+  roomId,
+}: {
+  readonly race: Race;
+  readonly view: RaceView;
+  readonly roomId: string;
+}) {
+  // Typing is only live while the race is. Before that the target is shown but
+  // inert, which is what makes a synced countdown mean anything.
+  const racing = view.phase === 'racing';
+  const run = useTypingRun(view.text, `${roomId}:${view.startedAt ?? 'pending'}`);
+
+  // Progress is advisory, so it is sent on change rather than on every key.
+  const sentProgress = useRef(-1);
+  const { reportProgress, submit } = race;
+  const progress = run.metrics.progress;
+  useEffect(() => {
+    if (!racing) {
+      return;
+    }
+    const rounded = Math.round(progress * 100) / 100;
+    if (rounded !== sentProgress.current) {
+      sentProgress.current = rounded;
+      reportProgress(rounded);
+    }
+  }, [racing, progress, reportProgress]);
+
+  // The keystream goes over exactly once, the moment the run completes.
+  const submitted = useRef(false);
+  const { finished, keystream } = run;
+  useEffect(() => {
+    if (finished && !submitted.current) {
+      submitted.current = true;
+      submit(keystream);
+    }
+  }, [finished, keystream, submit]);
 
   return (
     <main className="page">
