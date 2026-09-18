@@ -1,6 +1,6 @@
 import { isLinePreset, LANGUAGES, LINE_PRESETS, type Language } from '@ctr/generator';
 import { useState } from 'react';
-import { openRoom, roomLink } from './race/api.ts';
+import { openRoom, quickmatch, roomLink } from './race/api.ts';
 import { RacePage } from './race/RacePage.tsx';
 import { TypingSurface } from './solo/TypingSurface.tsx';
 import { useRun } from './solo/useRun.ts';
@@ -36,6 +36,17 @@ function SoloPage() {
   const { metrics } = run;
   const [invite, setInvite] = useState<string | undefined>(undefined);
   const [raceError, setRaceError] = useState<string | undefined>(undefined);
+
+  const findRace = (): void => {
+    setRaceError(undefined);
+    quickmatch(language, lines)
+      .then((id) => {
+        window.location.href = `/r/${id}`;
+      })
+      .catch((error: unknown) =>
+        setRaceError(error instanceof Error ? error.message : 'could not find a race'),
+      );
+  };
 
   const startRace = (): void => {
     setRaceError(undefined);
@@ -92,6 +103,9 @@ function SoloPage() {
         {!isLinePreset(lines) && <span className="hint">custom · unranked</span>}
         <span className="seed">seed {run.seed}</span>
         <span className="hint">tab · new snippet &nbsp; esc · retry this one</span>
+        <button type="button" onClick={findRace}>
+          race someone
+        </button>
         <button type="button" onClick={startRace}>
           race a friend
         </button>
