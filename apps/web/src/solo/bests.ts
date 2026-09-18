@@ -65,26 +65,35 @@ export function readBest(store: BestStore, key: string): Best | undefined {
 }
 
 /**
- * Records a finished run and says whether it beat the stored best. Speed alone
- * decides: it is the number the leaderboards will rank on, so the local board
- * and the public one should not disagree about what "better" means.
+ * How a finished run stands against the best that existed before it. Pure, so
+ * the results screen can derive it during render — speed alone decides, since
+ * it is the number the leaderboards will rank on and the local board should
+ * not disagree with the public one about what "better" means.
  */
-export function recordBest(store: BestStore, key: string, run: Best): BestOutcome {
-  const previous = readBest(store, key);
-  const improved = previous === undefined || run.wpm > previous.wpm;
-  if (!improved) {
-    return { best: previous, previous, improved: false };
+export function compareToBest(run: Best, previous: Best | undefined): BestOutcome {
+  if (previous === undefined) {
+    return { best: run, improved: true };
   }
+  return run.wpm > previous.wpm
+    ? { best: run, previous, improved: true }
+    : { best: previous, previous, improved: false };
+}
 
+/**
+ * Stores the run if it beats what is there. Separate from the comparison and
+ * safe to repeat: the write is the only part that touches the browser, and
+ * calling it twice for the same run changes nothing.
+ */
+export function saveBest(store: BestStore, key: string, run: Best): void {
+  if (!compareToBest(run, readBest(store, key)).improved) {
+    return;
+  }
   try {
     store.setItem(key, JSON.stringify({ version: STORED_VERSION, ...run }));
   } catch {
     // A full or blocked quota costs the player their history, not their run.
     // The screen still shows the new best; it just will not survive a reload.
   }
-  return previous === undefined
-    ? { best: run, improved: true }
-    : { best: run, previous, improved: true };
 }
 
 function parse(value: unknown): Best | undefined {

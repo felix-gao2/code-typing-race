@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bestKey, readBest, recordBest, type Best, type BestStore } from './bests.ts';
+import { bestKey, compareToBest, readBest, saveBest, type Best, type BestStore } from './bests.ts';
 
 const key = bestKey('java', 20);
 
@@ -35,48 +35,59 @@ describe('bestKey', () => {
   });
 });
 
-describe('recordBest', () => {
+describe('compareToBest', () => {
   it('makes the first run the best and reports no previous', () => {
-    const store = fakeStore();
-    expect(recordBest(store, key, run)).toStrictEqual({ best: run, improved: true });
-    expect(readBest(store, key)).toStrictEqual(run);
+    expect(compareToBest(run, undefined)).toStrictEqual({ best: run, improved: true });
   });
 
-  it('keeps the stored best when the new run is slower', () => {
-    const store = fakeStore();
-    recordBest(store, key, run);
+  it('keeps the previous best when the new run is slower', () => {
     const slower = { wpm: 61, accuracy: 1, elapsedMs: 20_000 };
 
-    expect(recordBest(store, key, slower)).toStrictEqual({
-      best: run,
-      previous: run,
-      improved: false,
-    });
-    expect(readBest(store, key)).toStrictEqual(run);
+    expect(compareToBest(slower, run)).toStrictEqual({ best: run, previous: run, improved: false });
   });
 
-  it('replaces the best when the new run is faster, even if less accurate', () => {
-    const store = fakeStore();
-    recordBest(store, key, run);
+  it('prefers the faster run even when it is less accurate', () => {
     const faster = { wpm: 91, accuracy: 0.8, elapsedMs: 10_500 };
 
-    expect(recordBest(store, key, faster)).toStrictEqual({
+    expect(compareToBest(faster, run)).toStrictEqual({
       best: faster,
       previous: run,
       improved: true,
     });
-    expect(readBest(store, key)).toStrictEqual(faster);
   });
 
   it('does not count an equal run as an improvement', () => {
-    const store = fakeStore();
-    recordBest(store, key, run);
+    expect(compareToBest({ ...run }, run).improved).toBe(false);
+  });
+});
 
-    expect(recordBest(store, key, { ...run }).improved).toBe(false);
+describe('saveBest', () => {
+  it('stores the first run', () => {
+    const store = fakeStore();
+    saveBest(store, key, run);
+
+    expect(readBest(store, key)).toStrictEqual(run);
   });
 
-  it('still reports the run as the best when storage refuses to be written', () => {
-    expect(recordBest(hostileStore, key, run)).toStrictEqual({ best: run, improved: true });
+  it('leaves a faster stored run alone', () => {
+    const store = fakeStore();
+    saveBest(store, key, run);
+    saveBest(store, key, { wpm: 61, accuracy: 1, elapsedMs: 20_000 });
+
+    expect(readBest(store, key)).toStrictEqual(run);
+  });
+
+  it('is safe to repeat for the same run, which a re-render can do', () => {
+    const store = fakeStore();
+    saveBest(store, key, run);
+    saveBest(store, key, run);
+
+    expect(store.items.size).toBe(1);
+    expect(readBest(store, key)).toStrictEqual(run);
+  });
+
+  it('does not throw when storage refuses to be written', () => {
+    expect(() => saveBest(hostileStore, key, run)).not.toThrow();
   });
 });
 
