@@ -2,6 +2,7 @@ import type { Language } from '@ctr/generator';
 import type { RunMetrics } from '@ctr/typing-engine';
 import { useEffect, useRef } from 'react';
 import type { BestOutcome } from './bests.ts';
+import type { Ghost } from './ghost.ts';
 import { Leaderboard } from './Leaderboard.tsx';
 
 interface ResultsProps {
@@ -12,6 +13,12 @@ interface ResultsProps {
   readonly onNewSnippet: () => void;
   readonly onRaceSomeone: () => void;
   readonly onRaceFriend: () => void;
+  readonly onRaceGhost: () => void;
+  /** The run that was on screen during this one, absent the first time a
+   * snippet is finished. */
+  readonly ghost: Ghost | undefined;
+  /** Whether the ghost above was actually racing, rather than merely stored. */
+  readonly racedGhost: boolean;
   readonly language: Language;
   readonly lines: number;
   /** Changes once the run has been recorded, so the board reloads with it. */
@@ -34,6 +41,9 @@ export function Results({
   onNewSnippet,
   onRaceSomeone,
   onRaceFriend,
+  onRaceGhost,
+  ghost,
+  racedGhost,
   language,
   lines,
   recordedKey,
@@ -68,6 +78,8 @@ export function Results({
 
       <p className="best">{bestLine(metrics, outcome)}</p>
 
+      {racedGhost && ghost !== undefined && <p className="best">{ghostLine(metrics, ghost)}</p>}
+
       <Leaderboard language={language} lines={lines} refreshKey={recordedKey} />
 
       <div className="actions">
@@ -76,6 +88,11 @@ export function Results({
         </button>
         <button type="button" onClick={onNewSnippet}>
           next snippet · tab
+        </button>
+        {/* The run that just finished is now this snippet's ghost, so there is
+            always one to offer by the time this screen is on. */}
+        <button type="button" onClick={onRaceGhost}>
+          race your last run
         </button>
         <button type="button" onClick={onRaceSomeone}>
           race someone
@@ -100,6 +117,14 @@ function bestLine(metrics: RunMetrics, outcome: BestOutcome | undefined): string
     return `new best · +${gain.toFixed(0)} wpm on ${outcome.previous.wpm.toFixed(0)}`;
   }
   return `your best: ${outcome.best.wpm.toFixed(0)} wpm`;
+}
+
+/** Speed decides, the same as the personal best and the boards do. */
+function ghostLine(metrics: RunMetrics, ghost: Ghost): string {
+  const margin = Math.abs(metrics.wpm - ghost.wpm).toFixed(0);
+  return metrics.wpm > ghost.wpm
+    ? `beat your ghost by ${margin} wpm`
+    : `lost to your ghost by ${margin} wpm`;
 }
 
 /** Shared with the live row on the solo page, so the two never drift apart. */
