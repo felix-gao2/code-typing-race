@@ -1,7 +1,7 @@
 import { isLinePreset, LINE_PRESETS } from '@ctr/generator';
 import { and, desc, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { firstError, languageSchema } from '../io.ts';
+import { firstError, languageSchema } from '../wire.ts';
 import type { Db } from './index.ts';
 import { runs, snippets } from './schema.ts';
 

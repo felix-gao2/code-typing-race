@@ -5,12 +5,13 @@ import { Server } from 'socket.io';
 import { leaderboard, parseBoardQuery } from './db/board.ts';
 import { db } from './db/index.ts';
 import { recordRun } from './db/store.ts';
-import { attach, firstError, raceRequestSchema, runRecordOf, viewOf } from './io.ts';
+import { attach, runRecordOf, viewOf } from './io.ts';
 import { RateLimit } from './limit.ts';
 import { Matchmaker } from './matchmaker.ts';
 import { Rooms } from './rooms.ts';
 import { parseSolo, verifySolo } from './runs.ts';
 import { Scheduler } from './schedule.ts';
+import { firstError, raceRequestSchema } from './wire.ts';
 
 /**
  * The race server: Express for opening a room, Socket.io for racing in one.

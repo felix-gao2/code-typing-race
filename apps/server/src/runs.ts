@@ -8,14 +8,8 @@ import {
   type InputEvent,
 } from '@ctr/typing-engine';
 import { z } from 'zod';
-import {
-  firstError,
-  keystreamSchema,
-  languageSchema,
-  linesSchema,
-  playerSchema,
-  type VerifiedRun,
-} from './io.ts';
+import type { VerifiedRun } from './io.ts';
+import { firstError, keystreamSchema, languageSchema, linesSchema, playerSchema } from './wire.ts';
 
 /**
  * Solo runs. A race arrives over a socket and the server already knows its
