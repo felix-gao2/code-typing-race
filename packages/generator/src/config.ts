@@ -1,3 +1,5 @@
+import type { ValueType } from './ast.ts';
+
 /**
  * Difficulty is not a dimension of this game. Every snippet is generated at
  * the same density, and the only thing the player chooses is how many lines
@@ -19,7 +21,7 @@ export interface GeneratorConfig {
   /** Doubles are generated as tenths, so 999 renders as 99.9. */
   doubleTenthsMax: number;
   stringLength: readonly [min: number, max: number];
-  identifiers: readonly string[];
+  identifiers: Readonly<Record<ValueType, readonly string[]>>;
 }
 
 /**
@@ -32,26 +34,24 @@ export interface LanguageCapabilities {
   doWhile: boolean;
 }
 
-const IDENTIFIERS = [
-  'n',
-  'count',
-  'total',
-  'idx',
-  'buf',
-  'tag',
-  'rate',
-  'size',
-  'step',
-  'flag',
-  'name',
-  'limit',
-  'delta',
-  'score',
-  'mode',
-  'ok',
-  'done',
-  'valid',
-] as const;
+/**
+ * Names, split by what the variable holds. One flat pool made `count` a bool
+ * and `size` a string, which Java and TypeScript half-absorb because the
+ * declaration states the type anyway — but Python has no declaration, so
+ * `count = delta <= 2` is all the reader gets.
+ *
+ * A name that could honestly go either way — `total`, `delta`, `score` —
+ * lives in one pool only. A name in two pools is a name that says less.
+ *
+ * Every pool must be non-empty, or `freshName` has nothing to pick from; the
+ * type of `identifiers` requires all four.
+ */
+const IDENTIFIERS = {
+  int: ['n', 'count', 'total', 'idx', 'size', 'step', 'limit', 'delta', 'score', 'offset'],
+  double: ['rate', 'ratio', 'average', 'factor', 'scale', 'weight'],
+  boolean: ['flag', 'ok', 'done', 'valid', 'ready', 'found'],
+  string: ['buf', 'tag', 'name', 'mode', 'label', 'text', 'prefix'],
+} as const;
 
 /**
  * The one density every snippet is generated at. These are the values the old
