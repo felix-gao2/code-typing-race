@@ -5,6 +5,7 @@ import { openRoom, quickmatch, roomLink, submitRun } from './race/api.ts';
 import { loadPlayer, savePlayer } from './player.ts';
 import { RacePage } from './race/RacePage.tsx';
 import { bestKey, compareToBest, readBest, saveBest } from './solo/bests.ts';
+import { ghostProgress } from './solo/ghost.ts';
 import { Results, Stat } from './solo/Results.tsx';
 import { TypingSurface } from './solo/TypingSurface.tsx';
 import { useRun } from './solo/useRun.ts';
@@ -217,12 +218,34 @@ function SoloPage() {
           onNewSnippet={run.newSnippet}
           onRaceSomeone={findRace}
           onRaceFriend={startRace}
+          onRaceGhost={run.raceGhost}
+          ghost={run.ghost}
+          racedGhost={run.racingGhost}
           language={language}
           lines={lines}
           recordedKey={recordedKey}
         />
       ) : (
         <>
+          {run.racingGhost && run.ghost !== undefined && (
+            // The same two-bar shape a race uses, because this is one. The
+            // ghost rides the live run's elapsed time, so it needs no clock of
+            // its own and cannot drift away from the numbers below.
+            <section className="racers">
+              <div className="racer">
+                <span className="stat-label">you</span>
+                <progress value={metrics.progress} max={1} />
+              </div>
+              <div className="racer">
+                <span className="stat-label">ghost · {run.ghost.wpm.toFixed(0)} wpm</span>
+                <progress
+                  value={ghostProgress(run.ghost.events, metrics.elapsedMs, run.state.chars.length)}
+                  max={1}
+                />
+              </div>
+            </section>
+          )}
+
           <TypingSurface
             state={run.state}
             onIntent={run.handleInput}
