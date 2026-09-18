@@ -16,15 +16,21 @@ interface Window {
 
 export class RateLimit {
   private readonly windows = new Map<string, Window>();
+  private readonly max: number;
+  private readonly windowMs: number;
 
   /**
+   * Written out rather than as parameter properties: the server runs under
+   * `node --experimental-strip-types`, which removes types but rewrites
+   * nothing, and a parameter property is a rewrite.
+   *
    * @param max how many calls one key may make per window
    * @param windowMs how long a window lasts
    */
-  constructor(
-    private readonly max: number,
-    private readonly windowMs: number,
-  ) {}
+  constructor(max: number, windowMs: number) {
+    this.max = max;
+    this.windowMs = windowMs;
+  }
 
   /** Records a call and says whether it is allowed. */
   allow(key: string, now: number): boolean {
