@@ -26,6 +26,21 @@ const PORT = Number(process.env.PORT ?? 3001);
 const ORIGIN = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
 
 /**
+ * How many proxies sit in front of this process, as Express's `trust proxy`
+ * setting. Unset means none, which is both the Express default and the right
+ * answer in development.
+ *
+ * It is configuration rather than a constant because trusting a hop that is
+ * not there is worse than not trusting one that is: `X-Forwarded-For` is a
+ * request header like any other, so a trusted hop that does not exist lets a
+ * client name its own address and take a fresh rate-limit bucket per request.
+ * Behind Fly's proxy the answer is `TRUST_PROXY=1`. Express also accepts
+ * `loopback`, a subnet, or a comma-separated list, so a non-numeric value is
+ * passed through as written.
+ */
+const TRUST_PROXY = process.env.TRUST_PROXY;
+
+/**
  * Private-room defaults. Two people is a race; `waitTimeoutMs` is deliberately
  * absent, because a private room waits for the person you sent the link to for
  * as long as it takes.
@@ -56,9 +71,10 @@ const PUBLIC_DEFAULTS: RaceConfig = {
  * Run submission is rate limited per address, not per player: a player id is
  * minted by the browser, so anyone flooding the table can mint a fresh one per
  * request. Generous enough that retrying a run every few seconds never hits
- * it. Behind Fly's proxy this needs `trust proxy` to see the real address —
- * without it every request counts against one key, which fails closed rather
- * than open and is the safer way round to get it wrong.
+ * it. Behind a proxy `request.ip` is the proxy's address until `TRUST_PROXY`
+ * says how many hops to look past; until then every request counts against
+ * one key, which fails closed rather than open and is the safer way round to
+ * get it wrong.
  */
 const SUBMIT_PER_MINUTE = 30;
 const SUBMIT_WINDOW_MS = 60_000;
@@ -74,6 +90,11 @@ const io = new Server(http, { cors: { origin: ORIGIN } });
 const scheduler = new Scheduler(rooms, (room) => io.to(room.id).emit('race', viewOf(room)));
 const matchmaker = new Matchmaker(rooms, PUBLIC_DEFAULTS);
 const submissions = new RateLimit(SUBMIT_PER_MINUTE, SUBMIT_WINDOW_MS);
+
+if (TRUST_PROXY !== undefined && TRUST_PROXY !== '') {
+  const hops = Number(TRUST_PROXY);
+  app.set('trust proxy', Number.isInteger(hops) ? hops : TRUST_PROXY);
+}
 
 app.use(express.json());
 
