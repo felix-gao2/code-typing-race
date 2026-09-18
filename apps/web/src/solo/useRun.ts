@@ -1,7 +1,8 @@
-import { generateSnippet, type Language } from '@ctr/generator';
+import { generateSnippet, GENERATOR_VERSION, type Language } from '@ctr/generator';
 import type { InputEvent, RunMetrics, RunState } from '@ctr/typing-engine';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTypingRun } from '../typing/useTypingRun.ts';
+import { ghostKey, readGhost, rebase, saveGhost, type Ghost } from './ghost.ts';
 import type { InputIntent } from './input.ts';
 
 export interface Run {
@@ -24,6 +25,16 @@ export interface Run {
   readonly newSnippet: () => void;
   /** The same snippet again, which is what makes two runs comparable. */
   readonly retry: () => void;
+  /**
+   * The run this snippet was last finished in, absent until it has been
+   * finished once. Read at the start of the attempt, so finishing does not
+   * replace the ghost the attempt is being measured against.
+   */
+  readonly ghost: Ghost | undefined;
+  /** The same snippet again with the ghost on screen. */
+  readonly raceGhost: () => void;
+  /** Whether this attempt is the one the player asked to race the ghost. */
+  readonly racingGhost: boolean;
 }
 
 function randomSeed(): number {
@@ -37,7 +48,11 @@ function randomSeed(): number {
  * is the same code a race uses.
  */
 export function useRun(language: Language, lines: number): Run {
-  const [{ seed, attempt }, setIdentity] = useState(() => ({ seed: randomSeed(), attempt: 0 }));
+  const [{ seed, attempt, racingGhost }, setIdentity] = useState(() => ({
+    seed: randomSeed(),
+    attempt: 0,
+    racingGhost: false,
+  }));
 
   const text = useMemo(() => generateSnippet({ seed, language, lines }), [seed, language, lines]);
 
@@ -47,9 +62,54 @@ export function useRun(language: Language, lines: number): Run {
   const runKey = `${language}:${lines}:${seed}:${attempt}`;
   const run = useTypingRun(text, runKey);
 
-  const newSnippet = useCallback(() => setIdentity({ seed: randomSeed(), attempt: 0 }), []);
+  const key = ghostKey({ generatorVersion: GENERATOR_VERSION, language, lines, seed });
+
+  // Read during render rather than in an effect, the same way the run itself
+  // resets: reading storage changes nothing, and an effect would paint one
+  // frame of the attempt against the wrong opponent. `runKey` carries
+  // everything `key` does, so it changes whenever the snippet does.
+  const [slot, setSlot] = useState(() => ({ runKey, ghost: readGhost(window.localStorage, key) }));
+  if (slot.runKey !== runKey) {
+    setSlot({ runKey, ghost: readGhost(window.localStorage, key) });
+  }
+
+  // Writing is the only part that touches the browser, so it is the only part
+  // in an effect. Recorded once per attempt: the ghost is the last run, and
+  // re-recording the same finished one would only rewrite it with itself.
+  const recorded = useRef<string | undefined>(undefined);
+  const { finished, keystream, metrics } = run;
+  useEffect(() => {
+    if (!finished || recorded.current === runKey || keystream.length === 0) {
+      return;
+    }
+    recorded.current = runKey;
+    saveGhost(window.localStorage, key, {
+      wpm: metrics.wpm,
+      accuracy: metrics.accuracy,
+      events: rebase(keystream),
+    });
+  }, [finished, runKey, key, keystream, metrics]);
+
+  const newSnippet = useCallback(
+    () => setIdentity({ seed: randomSeed(), attempt: 0, racingGhost: false }),
+    [],
+  );
   const retry = useCallback(
-    () => setIdentity((previous) => ({ ...previous, attempt: previous.attempt + 1 })),
+    () =>
+      setIdentity((previous) => ({
+        ...previous,
+        attempt: previous.attempt + 1,
+        racingGhost: false,
+      })),
+    [],
+  );
+  const raceGhost = useCallback(
+    () =>
+      setIdentity((previous) => ({
+        ...previous,
+        attempt: previous.attempt + 1,
+        racingGhost: true,
+      })),
     [],
   );
 
@@ -63,5 +123,8 @@ export function useRun(language: Language, lines: number): Run {
     handleInput: run.handleInput,
     newSnippet,
     retry,
+    ghost: slot.ghost,
+    raceGhost,
+    racingGhost,
   };
 }
