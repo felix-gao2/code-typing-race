@@ -1,7 +1,9 @@
 import { isLinePreset, LANGUAGES, LINE_PRESETS, type Language } from '@ctr/generator';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { openRoom, quickmatch, roomLink } from './race/api.ts';
 import { RacePage } from './race/RacePage.tsx';
+import { bestKey, compareToBest, readBest, saveBest } from './solo/bests.ts';
+import { Results, Stat } from './solo/Results.tsx';
 import { TypingSurface } from './solo/TypingSurface.tsx';
 import { useRun } from './solo/useRun.ts';
 
@@ -36,6 +38,40 @@ function SoloPage() {
   const { metrics } = run;
   const [invite, setInvite] = useState<string | undefined>(undefined);
   const [raceError, setRaceError] = useState<string | undefined>(undefined);
+
+  const key = bestKey(language, lines);
+
+  // The mark to beat, read once per attempt and before this run can overwrite
+  // it, so a new best still has a number to report an improvement on. Read
+  // during render rather than in an effect, the way the run itself resets:
+  // reading storage changes nothing, and an effect would paint one frame of
+  // the results screen against the wrong best.
+  const [mark, setMark] = useState(() => ({
+    runKey: run.runKey,
+    best: readBest(window.localStorage, key),
+  }));
+  if (mark.runKey !== run.runKey) {
+    // `runKey` carries the language and the line count, so it changes whenever
+    // `key` does.
+    setMark({ runKey: run.runKey, best: readBest(window.localStorage, key) });
+  }
+
+  const outcome = run.finished
+    ? compareToBest(
+        { wpm: metrics.wpm, accuracy: metrics.accuracy, elapsedMs: metrics.elapsedMs },
+        mark.best,
+      )
+    : undefined;
+
+  // Writing is the only part that touches the browser, so it is the only part
+  // in an effect. Repeating it for the same run changes nothing.
+  const { finished } = run;
+  useEffect(() => {
+    if (!finished || outcome === undefined) {
+      return;
+    }
+    saveBest(window.localStorage, key, outcome.best);
+  }, [finished, key, outcome]);
 
   const findRace = (): void => {
     setRaceError(undefined);
@@ -118,29 +154,33 @@ function SoloPage() {
       )}
       {raceError !== undefined && <p className="hint">{raceError}</p>}
 
-      <TypingSurface
-        state={run.state}
-        onIntent={run.handleInput}
-        onNewSnippet={run.newSnippet}
-        onRetry={run.retry}
-      />
+      {run.finished ? (
+        <Results
+          metrics={metrics}
+          outcome={outcome}
+          onRetry={run.retry}
+          onNewSnippet={run.newSnippet}
+          onRaceSomeone={findRace}
+          onRaceFriend={startRace}
+        />
+      ) : (
+        <>
+          <TypingSurface
+            state={run.state}
+            onIntent={run.handleInput}
+            onNewSnippet={run.newSnippet}
+            onRetry={run.retry}
+          />
 
-      <section className={`stats${run.finished ? ' stats-final' : ''}`}>
-        <Stat label="wpm" value={metrics.wpm.toFixed(0)} />
-        <Stat label="acc" value={`${(metrics.accuracy * 100).toFixed(0)}%`} />
-        <Stat label="time" value={`${(metrics.elapsedMs / 1000).toFixed(1)}s`} />
-        <Stat label="errors" value={String(metrics.errors)} />
-        <Stat label="done" value={`${(metrics.progress * 100).toFixed(0)}%`} />
-      </section>
+          <section className="stats">
+            <Stat label="wpm" value={metrics.wpm.toFixed(0)} />
+            <Stat label="acc" value={`${(metrics.accuracy * 100).toFixed(0)}%`} />
+            <Stat label="time" value={`${(metrics.elapsedMs / 1000).toFixed(1)}s`} />
+            <Stat label="errors" value={String(metrics.errors)} />
+            <Stat label="done" value={`${(metrics.progress * 100).toFixed(0)}%`} />
+          </section>
+        </>
+      )}
     </main>
-  );
-}
-
-function Stat({ label, value }: { readonly label: string; readonly value: string }) {
-  return (
-    <span className="stat">
-      <span className="stat-value">{value}</span>
-      <span className="stat-label">{label}</span>
-    </span>
   );
 }
