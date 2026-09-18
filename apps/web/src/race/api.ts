@@ -108,6 +108,40 @@ export async function submitRun(run: {
   }
 }
 
+export interface BoardEntry {
+  readonly playerName: string;
+  readonly wpm: number;
+  readonly accuracy: number;
+  readonly finishedAt: string;
+}
+
+export interface BoardResponse {
+  /** False when the server has no database configured. An empty board and a
+   * missing one look identical otherwise. */
+  readonly stored: boolean;
+  readonly entries: readonly BoardEntry[];
+}
+
+export async function fetchLeaderboard(
+  kind: 'solo' | 'multiplayer',
+  language: Language,
+  lines: number,
+  span: 'daily' | 'all-time',
+): Promise<BoardResponse> {
+  const query = new URLSearchParams({ kind, language, lines: String(lines), span });
+  const response = await fetch(`${SERVER_URL}/leaderboard?${query.toString()}`);
+
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => ({}));
+    const error = typeof body === 'object' && body !== null && 'error' in body ? body.error : null;
+    throw new Error(
+      typeof error === 'string' ? error : `could not read the board (${response.status})`,
+    );
+  }
+
+  return (await response.json()) as BoardResponse;
+}
+
 /** The link to paste. Room codes are meant to travel through chat messages. */
 export function roomLink(id: string): string {
   return `${window.location.origin}/r/${id}`;
