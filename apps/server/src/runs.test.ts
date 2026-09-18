@@ -107,11 +107,18 @@ describe('verifySolo', () => {
     // snippet's keystream can reach the end — it just did not type this text.
     // Nothing has to refuse it: every wrong character is charged to accuracy,
     // and a run cannot be made fast by sending the wrong keys.
-    const mine = generateSnippet({ seed: 7, language: 'java', lines: 10 });
-    const other = perfectRun(generateSnippet({ seed: 8, language: 'java', lines: 10 })).slice(
-      0,
-      mapTarget(mine).chars.length,
-    );
+    const mine = mapTarget(generateSnippet({ seed: 7, language: 'java', lines: 10 })).chars;
+    const theirs = mapTarget(generateSnippet({ seed: 8, language: 'java', lines: 10 })).chars;
+    // Cycled rather than sliced to exactly the length this snippet wants: the
+    // other snippet is not guaranteed to be the longer of the two, and a
+    // keystream that stops short would be refused for finishing nothing
+    // instead of scored for typing the wrong thing.
+    let at = 1000;
+    const other = mine.map((_, index) => ({
+      kind: 'char' as const,
+      char: theirs[index % theirs.length]?.char ?? 'x',
+      at: (at += 100),
+    }));
     const result = verifySolo(parseSolo(submission({ events: other })));
 
     expect(result.metrics.accuracy).toBeLessThan(1);
