@@ -82,6 +82,7 @@ function SoloPage() {
   // personal best above is local and the board is not. A run is submitted once
   // and only once, which the key of the attempt is what identifies.
   const [submitError, setSubmitError] = useState<string | undefined>(undefined);
+  const [recordedKey, setRecordedKey] = useState('');
   const submitted = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!run.finished || submitted.current === run.runKey) {
@@ -94,11 +95,13 @@ function SoloPage() {
       seed: run.seed,
       player,
       events: run.keystream,
-    }).catch((error: unknown) =>
-      // Surfaced rather than swallowed. The run still counts locally; what was
-      // lost is the board entry, and saying so beats a silent gap in it.
-      setSubmitError(error instanceof Error ? error.message : 'the run was not recorded'),
-    );
+    })
+      .then(() => setRecordedKey(run.runKey))
+      .catch((error: unknown) =>
+        // Surfaced rather than swallowed. The run still counts locally; what was
+        // lost is the board entry, and saying so beats a silent gap in it.
+        setSubmitError(error instanceof Error ? error.message : 'the run was not recorded'),
+      );
   }, [run.finished, run.runKey, run.seed, run.keystream, language, lines, player]);
 
   // Writing is the only part that touches the browser, so it is the only part
@@ -214,6 +217,9 @@ function SoloPage() {
           onNewSnippet={run.newSnippet}
           onRaceSomeone={findRace}
           onRaceFriend={startRace}
+          language={language}
+          lines={lines}
+          recordedKey={recordedKey}
         />
       ) : (
         <>

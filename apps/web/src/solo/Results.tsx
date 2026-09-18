@@ -1,6 +1,8 @@
+import type { Language } from '@ctr/generator';
 import type { RunMetrics } from '@ctr/typing-engine';
 import { useEffect, useRef } from 'react';
 import type { BestOutcome } from './bests.ts';
+import { Leaderboard } from './Leaderboard.tsx';
 
 interface ResultsProps {
   readonly metrics: RunMetrics;
@@ -10,6 +12,10 @@ interface ResultsProps {
   readonly onNewSnippet: () => void;
   readonly onRaceSomeone: () => void;
   readonly onRaceFriend: () => void;
+  readonly language: Language;
+  readonly lines: number;
+  /** Changes once the run has been recorded, so the board reloads with it. */
+  readonly recordedKey: string;
 }
 
 /**
@@ -28,6 +34,9 @@ export function Results({
   onNewSnippet,
   onRaceSomeone,
   onRaceFriend,
+  language,
+  lines,
+  recordedKey,
 }: ResultsProps) {
   const panel = useRef<HTMLDivElement>(null);
 
@@ -58,6 +67,8 @@ export function Results({
       </section>
 
       <p className="best">{bestLine(metrics, outcome)}</p>
+
+      <Leaderboard language={language} lines={lines} refreshKey={recordedKey} />
 
       <div className="actions">
         <button type="button" onClick={onRetry}>
