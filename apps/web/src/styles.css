@@ -138,3 +138,25 @@ body {
   font-size: 0.7rem;
   color: var(--skipped);
 }
+
+.results {
+  margin-top: 2.5rem;
+  /* Focused for tab and esc, but it is not a control, so no focus ring. */
+  outline: none;
+}
+
+.results .stats {
+  margin-top: 0;
+}
+
+.best {
+  margin: 1.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--skipped);
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
