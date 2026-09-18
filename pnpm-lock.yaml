@@ -73,6 +73,18 @@ importers:
         specifier: ^3.2.0
         version: 3.2.7(@types/node@24.13.4)(lightningcss@1.33.0)
 
+  packages/race-machine:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.4
+        version: 24.13.4
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@24.13.4)(lightningcss@1.33.0)
+
   packages/typing-engine:
     devDependencies:
       '@types/node':
