@@ -1,12 +1,11 @@
 import { createServer } from 'node:http';
-import { LANGUAGES, type Language } from '@ctr/generator';
 import type { RaceConfig } from '@ctr/race-machine';
 import express from 'express';
 import { Server } from 'socket.io';
 import { leaderboard, parseBoardQuery } from './db/board.ts';
 import { db } from './db/index.ts';
 import { recordRun } from './db/store.ts';
-import { attach, runRecordOf, viewOf } from './io.ts';
+import { attach, firstError, raceRequestSchema, runRecordOf, viewOf } from './io.ts';
 import { RateLimit } from './limit.ts';
 import { Matchmaker } from './matchmaker.ts';
 import { Rooms } from './rooms.ts';
@@ -107,22 +106,13 @@ app.get('/health', (_request, response) => {
  * rather than sent by the client, so nobody chooses the text they race on.
  */
 app.post('/rooms', (request, response) => {
-  const body: unknown = request.body;
-  const { language, lines } = body as { language?: unknown; lines?: unknown };
-
-  if (typeof language !== 'string' || !LANGUAGES.includes(language as Language)) {
-    response.status(400).json({ error: `language must be one of ${LANGUAGES.join(', ')}` });
-    return;
-  }
-  if (typeof lines !== 'number' || !Number.isInteger(lines) || lines < 1 || lines > 200) {
-    response.status(400).json({ error: 'lines must be an integer between 1 and 200' });
+  const asked = raceRequestSchema.safeParse(request.body);
+  if (!asked.success) {
+    response.status(400).json({ error: firstError(asked.error) });
     return;
   }
 
-  const room = rooms.open(
-    { language: language as Language, lines, config: PRIVATE_DEFAULTS },
-    Date.now(),
-  );
+  const room = rooms.open({ ...asked.data, config: PRIVATE_DEFAULTS }, Date.now());
   response.status(201).json({ id: room.id, language: room.language, lines: room.lines });
 });
 
