@@ -1,4 +1,6 @@
 import type { Language } from '@ctr/generator';
+import type { Player } from '@ctr/shared-types';
+import type { InputEvent } from '@ctr/typing-engine';
 
 /**
  * Where the race server lives. Set `VITE_SERVER_URL` to point a deployed web
@@ -73,6 +75,36 @@ export async function quickmatch(language: Language, lines: number): Promise<str
   } finally {
     // The race page opens its own socket; this one only asked a question.
     socket.disconnect();
+  }
+}
+
+/**
+ * Hands a finished solo run to the server, which regenerates the snippet from
+ * the identity here and recomputes the result from the keystream. Nothing in
+ * this body is a score — there is no field for one, which is the point.
+ *
+ * Lives beside the race calls because they share `SERVER_URL`, not because a
+ * solo run is a race.
+ */
+export async function submitRun(run: {
+  readonly language: Language;
+  readonly lines: number;
+  readonly seed: number;
+  readonly player: Player;
+  readonly events: readonly InputEvent[];
+}): Promise<void> {
+  const response = await fetch(`${SERVER_URL}/runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(run),
+  });
+
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => ({}));
+    const error = typeof body === 'object' && body !== null && 'error' in body ? body.error : null;
+    throw new Error(
+      typeof error === 'string' ? error : `the server rejected this run (${response.status})`,
+    );
   }
 }
 
