@@ -1,5 +1,5 @@
 import { generateSnippet, type Language } from '@ctr/generator';
-import type { RunMetrics, RunState } from '@ctr/typing-engine';
+import type { InputEvent, RunMetrics, RunState } from '@ctr/typing-engine';
 import { useCallback, useMemo, useState } from 'react';
 import { useTypingRun } from '../typing/useTypingRun.ts';
 import type { InputIntent } from './input.ts';
@@ -15,6 +15,9 @@ export interface Run {
   readonly state: RunState;
   readonly metrics: RunMetrics;
   readonly finished: boolean;
+  /** What the server recomputes the result from. The client's own numbers
+   * are never the ones that count. */
+  readonly keystream: readonly InputEvent[];
   /** Feed a `beforeinput`. Returns nothing; the caller prevents the default. */
   readonly handleInput: (intent: InputIntent) => void;
   /** A different snippet. */
@@ -56,6 +59,7 @@ export function useRun(language: Language, lines: number): Run {
     state: run.state,
     metrics: run.metrics,
     finished: run.finished,
+    keystream: run.keystream,
     handleInput: run.handleInput,
     newSnippet,
     retry,
