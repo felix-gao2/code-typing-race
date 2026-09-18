@@ -9,7 +9,10 @@ import {
   type InputEvent,
   type RunMetrics,
 } from '@ctr/typing-engine';
+import { ANONYMOUS, cleanName, type Player } from '@ctr/shared-types';
 import type { Server, Socket } from 'socket.io';
+import { db as defaultDb, type Db } from './db/index.ts';
+import { recordRace, recordRun, type RunRecord, type SnippetIdentity } from './db/store.ts';
 import type { Matchmaker } from './matchmaker.ts';
 import type { Room, Rooms } from './rooms.ts';
 import type { Scheduler } from './schedule.ts';
@@ -25,6 +28,12 @@ import type { Scheduler } from './schedule.ts';
 /** What a racer sends when they think they are done. */
 export interface SubmitPayload {
   readonly events: readonly InputEvent[];
+  /**
+   * Who to credit the run to. The name is cleaned again here: it goes onto a
+   * public board, and nothing off the wire is trusted — least of all the one
+   * field a client gets to choose the text of.
+   */
+  readonly player: Player;
 }
 
 /** The verified result, as the server computed it. */
@@ -88,7 +97,11 @@ export function viewOf(room: Room): RaceView {
  * Throws when the keystream is not a valid run of this text; the engine
  * already rejects timestamps that go backwards.
  */
-export function verify(room: Room, racerId: string, payload: SubmitPayload): RunResult {
+export function verify(
+  room: Room,
+  racerId: string,
+  payload: Pick<SubmitPayload, 'events'>,
+): RunResult {
   const state = replay(room.state.text, payload.events, DEFAULT_MODE);
   if (!isFinished(state)) {
     throw new Error('submitted keystream does not finish the snippet');
@@ -112,11 +125,13 @@ export interface AttachOptions {
   readonly scheduler: Scheduler;
   readonly matchmaker: Matchmaker;
   readonly now?: () => number;
+  /** Injected so a test never reaches for a database that is not there. */
+  readonly db?: () => Db | undefined;
 }
 
 export function attach(
   io: Server,
-  { rooms, scheduler, matchmaker, now = () => Date.now() }: AttachOptions,
+  { rooms, scheduler, matchmaker, now = () => Date.now(), db = defaultDb }: AttachOptions,
 ): void {
   const broadcast = (room: Room): void => {
     io.to(room.id).emit('race', viewOf(room));
@@ -216,6 +231,7 @@ export function attach(
       });
       ack?.({ ok: true, result });
       io.to(joined.roomId).emit('result', result);
+      store(db(), room, result, payload.player, now());
       if (moved !== undefined) {
         broadcast(moved);
       }
@@ -241,12 +257,103 @@ export function attach(
   });
 }
 
+/** The four columns a snippet is identified by, and nothing else. */
+export function snippetOf(result: RunResult): SnippetIdentity {
+  return {
+    generatorVersion: result.generatorVersion,
+    language: result.language,
+    lines: result.lines,
+    seed: result.seed,
+  };
+}
+
+/**
+ * The row for a finished run. Pure, so the one rule that matters here — the
+ * client's name is cleaned again on the way in — is testable without a
+ * database.
+ */
+export function runRecordOf(
+  result: RunResult,
+  player: Player,
+  at: number,
+  raceId?: string,
+): RunRecord {
+  return {
+    playerId: player.id,
+    playerName: cleanName(player.name ?? ANONYMOUS),
+    snippet: snippetOf(result),
+    ...(raceId === undefined ? {} : { raceId }),
+    wpm: result.metrics.wpm,
+    accuracy: result.metrics.accuracy,
+    errors: result.metrics.errors,
+    elapsedMs: result.metrics.elapsedMs,
+    ranked: result.ranked,
+    engineVersion: result.engineVersion,
+    engineMode: result.engineMode,
+    finishedAt: new Date(at),
+  };
+}
+
+/**
+ * Persists a finished race run. Deliberately not awaited: the racer already
+ * has their result, and a slow or broken database must not hold up the race
+ * everyone else is still in. The failure is logged rather than swallowed —
+ * there is nobody to hand it to, but it must not disappear.
+ */
+function store(
+  database: Db | undefined,
+  room: Room,
+  result: RunResult,
+  player: Player,
+  at: number,
+): void {
+  if (database === undefined) {
+    return;
+  }
+  // Memoised on the room: every racer in a race writes their own run, and all
+  // of them point at one race row.
+  room.persistedRace ??= recordRace(database, snippetOf(result), {
+    code: room.id,
+    kind: room.state.kind,
+    startedWith: room.state.startedWith ?? 0,
+    startedAt: new Date(room.state.startedAt ?? at),
+  });
+
+  void room.persistedRace
+    .then((raceId) => recordRun(database, runRecordOf(result, player, at, raceId)))
+    .catch((error: unknown) => {
+      // A race row that failed must not be remembered as done, or every
+      // later run in this race would wait on a promise that never resolves.
+      room.persistedRace = undefined;
+      console.error('failed to store run', error);
+    });
+}
+
 function isSubmitPayload(value: unknown): value is SubmitPayload {
   if (typeof value !== 'object' || value === null || !('events' in value)) {
     return false;
   }
   const { events } = value;
-  return Array.isArray(events) && events.every(isInputEvent);
+  return Array.isArray(events) && events.every(isInputEvent) && isPlayer(value);
+}
+
+/**
+ * An id is required and a name is not. A client that sends no name gets
+ * `anon`, which is what `cleanName` would have made of an empty one anyway —
+ * a missing name is not a reason to refuse a run someone just finished.
+ */
+function isPlayer(value: object): boolean {
+  const { player } = value as { player?: unknown };
+  if (typeof player !== 'object' || player === null) {
+    return false;
+  }
+  const { id, name } = player as { id?: unknown; name?: unknown };
+  return (
+    typeof id === 'string' &&
+    id !== '' &&
+    id.length <= 64 &&
+    (name === undefined || typeof name === 'string')
+  );
 }
 
 function isInputEvent(value: unknown): value is InputEvent {
