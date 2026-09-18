@@ -4,6 +4,7 @@ import type { RaceConfig } from '@ctr/race-machine';
 import express from 'express';
 import { Server } from 'socket.io';
 import { attach, viewOf } from './io.ts';
+import { Matchmaker } from './matchmaker.ts';
 import { Rooms } from './rooms.ts';
 import { Scheduler } from './schedule.ts';
 
@@ -31,6 +32,21 @@ const PRIVATE_DEFAULTS: RaceConfig = {
   raceTimeoutMs: 5 * 60_000,
 };
 
+/**
+ * Public matchmaking defaults. `waitTimeoutMs` is the answer to the question
+ * that was left open since the machine was written: someone alone in a public
+ * race starts after ten seconds rather than waiting for company that a quiet
+ * site may never send. The result of a race that started with one person is
+ * playable but never ranked — see `ranked` in `io.ts`.
+ */
+const PUBLIC_DEFAULTS: RaceConfig = {
+  minRacers: 2,
+  maxRacers: 5,
+  countdownMs: 5000,
+  raceTimeoutMs: 5 * 60_000,
+  waitTimeoutMs: 10_000,
+};
+
 /** How long an unopened room link survives before it is swept up. */
 const ROOM_GRACE_MS = 30 * 60_000;
 const REAP_INTERVAL_MS = 60_000;
@@ -40,6 +56,7 @@ const app = express();
 const http = createServer(app);
 const io = new Server(http, { cors: { origin: ORIGIN } });
 const scheduler = new Scheduler(rooms, (room) => io.to(room.id).emit('race', viewOf(room)));
+const matchmaker = new Matchmaker(rooms, PUBLIC_DEFAULTS);
 
 app.use(express.json());
 
@@ -92,7 +109,7 @@ app.post('/rooms', (request, response) => {
   response.status(201).json({ id: room.id, language: room.language, lines: room.lines });
 });
 
-attach(io, { rooms, scheduler });
+attach(io, { rooms, scheduler, matchmaker });
 
 // Abandoned links and finished races would otherwise accumulate for the life
 // of the process.

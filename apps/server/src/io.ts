@@ -1,4 +1,4 @@
-import { GENERATOR_VERSION } from '@ctr/generator';
+import { GENERATOR_VERSION, isLinePreset, LANGUAGES, type Language } from '@ctr/generator';
 import type { RaceState } from '@ctr/race-machine';
 import {
   DEFAULT_MODE,
@@ -10,6 +10,7 @@ import {
   type RunMetrics,
 } from '@ctr/typing-engine';
 import type { Server, Socket } from 'socket.io';
+import type { Matchmaker } from './matchmaker.ts';
 import type { Room, Rooms } from './rooms.ts';
 import type { Scheduler } from './schedule.ts';
 
@@ -38,6 +39,14 @@ export interface RunResult {
   readonly language: string;
   readonly lines: number;
   readonly engineMode: string;
+  /**
+   * Whether this result may reach a leaderboard. Three things have to hold: it
+   * was a public race, at least two people actually started it, and the length
+   * is one of the ranked presets. A private room is someone's own link, a race
+   * of one is a solo run wearing a race's clothes, and a custom length would
+   * give every run a board of its own.
+   */
+  readonly ranked: boolean;
 }
 
 /** What every client is shown. The keystream never leaves the server. */
@@ -84,8 +93,10 @@ export function verify(room: Room, racerId: string, payload: SubmitPayload): Run
   if (!isFinished(state)) {
     throw new Error('submitted keystream does not finish the snippet');
   }
+  const startedWith = room.state.startedWith ?? 0;
   return {
     racerId,
+    ranked: room.state.kind === 'public' && startedWith >= 2 && isLinePreset(room.lines),
     metrics: measure(state),
     generatorVersion: GENERATOR_VERSION,
     engineVersion: ENGINE_VERSION,
@@ -99,12 +110,13 @@ export function verify(room: Room, racerId: string, payload: SubmitPayload): Run
 export interface AttachOptions {
   readonly rooms: Rooms;
   readonly scheduler: Scheduler;
+  readonly matchmaker: Matchmaker;
   readonly now?: () => number;
 }
 
 export function attach(
   io: Server,
-  { rooms, scheduler, now = () => Date.now() }: AttachOptions,
+  { rooms, scheduler, matchmaker, now = () => Date.now() }: AttachOptions,
 ): void {
   const broadcast = (room: Room): void => {
     io.to(room.id).emit('race', viewOf(room));
@@ -139,6 +151,24 @@ export function attach(
       ack?.({ ok: true, racerId, race: viewOf(room) });
       broadcast(room);
       scheduler.sync(roomId);
+    });
+
+    /**
+     * Public matchmaking. Answers with a room code; the client then joins it
+     * exactly as it would a private one, so there is only one join path.
+     */
+    socket.on('quickmatch', (request: unknown, ack?: (response: unknown) => void) => {
+      const { language, lines } = (request ?? {}) as { language?: unknown; lines?: unknown };
+      if (typeof language !== 'string' || !LANGUAGES.includes(language as Language)) {
+        ack?.({ ok: false, error: 'unknown language' });
+        return;
+      }
+      if (typeof lines !== 'number' || !Number.isInteger(lines) || lines < 1 || lines > 200) {
+        ack?.({ ok: false, error: 'lines must be an integer between 1 and 200' });
+        return;
+      }
+      const room = matchmaker.find({ language: language as Language, lines }, now());
+      ack?.({ ok: true, id: room.id });
     });
 
     socket.on('progress', (value: unknown) => {
