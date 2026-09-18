@@ -155,7 +155,7 @@ describe('generateSnippet', () => {
         'for i in range(10):',
         '    print(i)',
         '',
-        'print(n)',
+        'print(weight)',
         'found = n >= 12',
       ].join('\n'),
     );
@@ -183,7 +183,7 @@ describe('generateSnippet', () => {
         'total = 98',
         'mode = "pmq"',
         'average -= 11.3',
-        'print(total)',
+        'print(label)',
       ].join('\n'),
     );
   });
@@ -235,6 +235,43 @@ describe.each(LANGUAGES)('generated %s', (language) => {
         expect(line.trim(), `${lines}/${seed}`).not.toMatch(/^(\w+) = \1;?$/);
       }
     }
+  });
+
+  it('leaves fewer than 45% of its variables unread', () => {
+    // A ratchet, not a law: real code has some write-only variables, so the
+    // target is not zero. It was 51% before the repair pass and is 40% now,
+    // and this exists so it cannot quietly climb back.
+    let declared = 0;
+    let unread = 0;
+    for (const { text } of snippets) {
+      // String contents are not code.
+      const rows = text.split('\n').map((line) =>
+        line
+          .split('"')
+          .filter((_, i) => i % 2 === 0)
+          .join(' '),
+      );
+      const names = new Set<string>();
+      for (const row of rows) {
+        const found = /^\s*(?:int|double|boolean|String|let)?\s*([a-z]\w*) = /.exec(row);
+        if (found?.[1] !== undefined) names.add(found[1]);
+      }
+      for (const name of names) {
+        const word = new RegExp(`(^|[^A-Za-z0-9_])${name}([^A-Za-z0-9_]|$)`);
+        declared += 1;
+        const read = rows.some((row) => {
+          const target = /^\s*(?:int|double|boolean|String|let)?\s*([a-z]\w*) (?:=|[-+*]=) /.exec(
+            row,
+          );
+          // Everything right of the `=` is a read; so is the whole row when
+          // the row is writing some other variable.
+          if (word.test(target === null ? row : row.slice(row.indexOf('=') + 1))) return true;
+          return target?.[1] !== undefined && target[1] !== name && word.test(row);
+        });
+        if (!read) unread += 1;
+      }
+    }
+    expect(unread / declared, `${unread} of ${declared}`).toBeLessThan(0.45);
   });
 
   it('never does arithmetic on two literals', () => {

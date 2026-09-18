@@ -97,6 +97,7 @@ export function generateProgram(
     used = total;
   }
 
+  useTheUnread(ctx, program);
   return program;
 }
 
@@ -104,6 +105,244 @@ export function generateProgram(
  * Two attempts at not repeating the previous statement's shape. Bounded, so a
  * scope holding exactly one variable still terminates — it just repeats.
  */
+/**
+ * A block's body, for walks that do not care which kind of block it is.
+ */
+function bodyOf(stmt: Stmt): Stmt[] {
+  return stmt.kind === 'if' ||
+    stmt.kind === 'for' ||
+    stmt.kind === 'while' ||
+    stmt.kind === 'doWhile'
+    ? stmt.body
+    : [];
+}
+
+/**
+ * Every name the program reads, as opposed to writes.
+ *
+ * A compound assignment's target counts as a write only: `total += 1` on a
+ * variable nothing ever looks at leaves it exactly as unread as `total = 1`
+ * would, and the point of this walk is to find the variables a reader never
+ * has a reason to care about.
+ */
+function readNames(program: Program): Map<string, number> {
+  const counts = new Map<string, number>();
+  const fromExpr = (expr: Expr): void => {
+    if (expr.kind === 'ref') {
+      counts.set(expr.name, (counts.get(expr.name) ?? 0) + 1);
+      return;
+    }
+    if (expr.kind === 'binary' || expr.kind === 'compare') {
+      fromExpr(expr.left);
+      fromExpr(expr.right);
+    }
+  };
+  const fromStmts = (stmts: readonly Stmt[]): void => {
+    for (const stmt of stmts) {
+      switch (stmt.kind) {
+        case 'declare':
+          fromExpr(stmt.init);
+          break;
+        case 'assign':
+        case 'compound':
+        case 'print':
+          fromExpr(stmt.value);
+          break;
+        case 'if':
+        case 'while':
+        case 'doWhile':
+          fromExpr(stmt.condition);
+          fromStmts(stmt.body);
+          break;
+        case 'for':
+          fromExpr(stmt.limit);
+          fromStmts(stmt.body);
+          break;
+      }
+    }
+  };
+  fromStmts(program);
+  return counts;
+}
+
+/** Every `declare` in the program, in source order. */
+function declarations(stmts: readonly Stmt[], out: Variable[] = []): Variable[] {
+  for (const stmt of stmts) {
+    if (stmt.kind === 'declare') {
+      out.push({ name: stmt.name, type: stmt.type });
+    }
+    declarations(bodyOf(stmt), out);
+  }
+  return out;
+}
+
+/**
+ * The statements a name is visible to: everything after its declaration in
+ * the declaring block, and everything nested inside those. A name declared
+ * in a block body is not visible after the block closes, which is why this
+ * cannot simply collect every later statement.
+ */
+function sitesFor(stmts: readonly Stmt[], name: string, visible: boolean, out: Stmt[]): void {
+  let seen = visible;
+  for (const stmt of stmts) {
+    if (seen) {
+      out.push(stmt);
+    }
+    if (stmt.kind === 'declare' && stmt.name === name) {
+      seen = true;
+      continue;
+    }
+    sitesFor(bodyOf(stmt), name, seen, out);
+  }
+}
+
+/** Whether a comparison or sum already names this variable on either side. */
+function mentions(expr: Expr, name: string): boolean {
+  if (expr.kind === 'ref') {
+    return expr.name === name;
+  }
+  if (expr.kind === 'binary' || expr.kind === 'compare') {
+    return mentions(expr.left, name) || mentions(expr.right, name);
+  }
+  return false;
+}
+
+/**
+ * The same expression with one literal of `type` replaced by a reference to
+ * `name`, or undefined if it has no literal to give up.
+ */
+function withRef(expr: Expr, type: ValueType, name: string): Expr | undefined {
+  if (expr.kind === type) {
+    return { kind: 'ref', name, type };
+  }
+  if (expr.kind === 'binary' || expr.kind === 'compare') {
+    if (!mentions(expr, name)) {
+      const left = withRef(expr.left, type, name);
+      if (left !== undefined) {
+        return { ...expr, left };
+      }
+      // Never the right of a `%`: the generator refuses `% 1` for the same
+      // reason it would refuse `% n`, which may be a division by nothing.
+      if (expr.kind === 'binary' && expr.op === '%') {
+        return undefined;
+      }
+      const right = withRef(expr.right, type, name);
+      if (right !== undefined) {
+        return { ...expr, right };
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Makes one statement read `variable`, by handing it a literal's place — or,
+ * for a `print`, by printing it instead of what it printed before. The
+ * statement is rewritten, never added or removed, so the program still
+ * renders to exactly the line count it was fitted to.
+ *
+ * `reads` is how many times each name is read in the program as it stands. A
+ * print is only retargeted when what it prints is read somewhere else too,
+ * since trading one unread variable for another repairs nothing.
+ */
+function readIn(stmt: Stmt, variable: Variable, reads: ReadonlyMap<string, number>): boolean {
+  // A statement never reads the variable it is writing: the generator refuses
+  // `mode = mode` everywhere else and this may not sneak one in.
+  const target =
+    stmt.kind === 'assign' || stmt.kind === 'compound' || stmt.kind === 'declare'
+      ? stmt.name
+      : undefined;
+  if (target === variable.name) {
+    return false;
+  }
+
+  switch (stmt.kind) {
+    case 'declare': {
+      const init = withRef(stmt.init, variable.type, variable.name);
+      if (init === undefined) return false;
+      stmt.init = init;
+      return true;
+    }
+    case 'assign':
+    case 'compound': {
+      const value = withRef(stmt.value, variable.type, variable.name);
+      if (value === undefined) return false;
+      stmt.value = value;
+      return true;
+    }
+    case 'print': {
+      const value = withRef(stmt.value, variable.type, variable.name);
+      if (value !== undefined) {
+        stmt.value = value;
+        return true;
+      }
+      // A print of a plain reference: print the unread variable instead, as
+      // long as the one it prints today is not left unread by the swap.
+      if (stmt.value.kind !== 'ref' || (reads.get(stmt.value.name) ?? 0) <= 1) {
+        return false;
+      }
+      stmt.value = { kind: 'ref', name: variable.name, type: variable.type };
+      return true;
+    }
+    case 'if':
+    case 'while':
+    case 'doWhile': {
+      const condition = withRef(stmt.condition, variable.type, variable.name);
+      if (condition === undefined) return false;
+      stmt.condition = condition;
+      return true;
+    }
+    case 'for': {
+      const limit = withRef(stmt.limit, variable.type, variable.name);
+      if (limit === undefined) return false;
+      stmt.limit = limit;
+      return true;
+    }
+  }
+}
+
+/**
+ * Gives never-read variables something to be read by.
+ *
+ * Half of every snippet used to be variables nothing ever looked at, which is
+ * not what code does. This runs after the line count is settled and only ever
+ * swaps a literal for a reference, so it cannot change how many lines the
+ * program renders to — the fitting loop is never re-entered.
+ *
+ * It repairs what it can and leaves the rest. A snippet with no dead store at
+ * all would be its own kind of unreal.
+ */
+function useTheUnread(ctx: Ctx, program: Program): void {
+  const declared = declarations(program);
+  // Bounded by the number of declarations: each pass must repair at least one
+  // or it stops, so this cannot spin.
+  for (let pass = 0; pass < declared.length; pass += 1) {
+    const reads = readNames(program);
+    const unread = declared.filter((variable) => !reads.has(variable.name));
+    if (unread.length === 0) {
+      return;
+    }
+
+    let repaired = false;
+    for (const variable of unread) {
+      const sites: Stmt[] = [];
+      sitesFor(program, variable.name, false, sites);
+      // Tried on a copy first: the filter must not leave half the program
+      // rewritten by statements that were only being considered.
+      const usable = sites.filter((stmt) => readIn({ ...stmt }, variable, reads));
+      if (usable.length === 0) {
+        continue;
+      }
+      if (readIn(ctx.rng.pick(usable), variable, reads)) {
+        repaired = true;
+      }
+    }
+    if (!repaired) {
+      return;
+    }
+  }
+}
+
 function genStatement(ctx: Ctx, depth: number, recent: readonly Stmt[], allowBlock = true): Stmt {
   let stmt = genStatementOnce(ctx, depth, allowBlock);
   for (let attempt = 0; attempt < 2 && repeatsShape(recent, stmt); attempt += 1) {
