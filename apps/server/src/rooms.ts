@@ -1,6 +1,13 @@
 import { randomInt } from 'node:crypto';
 import { generateSnippet, type Language } from '@ctr/generator';
-import { apply, create, type RaceEvent, type RaceConfig, type RaceState } from '@ctr/race-machine';
+import {
+  apply,
+  create,
+  tick,
+  type RaceConfig,
+  type RaceEvent,
+  type RaceState,
+} from '@ctr/race-machine';
 
 /**
  * Rooms live in memory and die with the process. `SPEC.md` is explicit that
@@ -79,6 +86,25 @@ export class Rooms {
     }
     room.state = next;
     return room;
+  }
+
+  /**
+   * Advances a room's clock. Returns the room's next deadline so the caller
+   * can schedule it, and whether the state moved — a countdown expiring is a
+   * broadcast, a tick that changed nothing is not.
+   */
+  advance(
+    id: string,
+    now: number,
+  ): { room: Room; deadline: number | undefined; moved: boolean } | undefined {
+    const room = this.rooms.get(id);
+    if (room === undefined) {
+      return undefined;
+    }
+    const result = tick(room.state, now);
+    const moved = result.state !== room.state;
+    room.state = result.state;
+    return { room, deadline: result.deadline, moved };
   }
 
   /** Drops a room and cancels anything it had scheduled. */
