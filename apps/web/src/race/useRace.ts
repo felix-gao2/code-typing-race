@@ -1,6 +1,7 @@
 import type { InputEvent, RunMetrics } from '@ctr/typing-engine';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { loadPlayer } from '../player.ts';
 import { SERVER_URL } from './api.ts';
 
 /**
@@ -102,9 +103,12 @@ export function useRace(roomId: string): Race {
   }, []);
 
   const submit = useCallback((keystream: readonly InputEvent[]) => {
+    // Read at submission rather than held: a name changed between joining and
+    // finishing should be the one the result is credited to.
+    const player = loadPlayer(window.localStorage, () => crypto.randomUUID());
     socket.current?.emit(
       'submit',
-      { events: keystream },
+      { events: keystream, player },
       (ack: { ok: boolean; error?: string }) => {
         if (!ack.ok) {
           // The server rejected the run. Saying so beats showing a result that
