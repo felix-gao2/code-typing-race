@@ -215,7 +215,7 @@ function isSubmitPayload(value: unknown): value is SubmitPayload {
   if (typeof value !== 'object' || value === null || !('events' in value)) {
     return false;
   }
-  const { events } = value as { events: unknown };
+  const { events } = value;
   return Array.isArray(events) && events.every(isInputEvent);
 }
 
