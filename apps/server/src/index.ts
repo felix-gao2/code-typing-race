@@ -3,6 +3,7 @@ import { LANGUAGES, type Language } from '@ctr/generator';
 import type { RaceConfig } from '@ctr/race-machine';
 import express from 'express';
 import { Server } from 'socket.io';
+import { leaderboard, parseBoardQuery } from './db/board.ts';
 import { db } from './db/index.ts';
 import { recordRun } from './db/store.ts';
 import { attach, runRecordOf, viewOf } from './io.ts';
@@ -159,6 +160,34 @@ app.post('/runs', (request, response) => {
     });
   }
   response.status(201).json(result);
+});
+
+/**
+ * A leaderboard. Reads empty rather than failing when no database is
+ * configured, and says so, because an empty board and a missing one look
+ * identical otherwise.
+ */
+app.get('/leaderboard', (request, response) => {
+  let query;
+  try {
+    query = parseBoardQuery(request.query, new Date());
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : 'invalid board' });
+    return;
+  }
+
+  const database = db();
+  if (database === undefined) {
+    response.json({ stored: false, entries: [] });
+    return;
+  }
+
+  leaderboard(database, query)
+    .then((entries) => response.json({ stored: true, entries }))
+    .catch((error: unknown) => {
+      console.error('failed to read the leaderboard', error);
+      response.status(500).json({ error: 'could not read the leaderboard' });
+    });
 });
 
 attach(io, { rooms, scheduler, matchmaker });
