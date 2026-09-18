@@ -134,7 +134,7 @@ describe('viewOf', () => {
   });
 
   it('carries nothing a client should not have', () => {
-    const view = viewOf(room()) as Record<string, unknown>;
+    const view = viewOf(room()) as unknown as Record<string, unknown>;
     // The keystream and the seed stay on the server: the seed would let a
     // client pre-generate and pre-type the snippet.
     expect(view.seed).toBeUndefined();

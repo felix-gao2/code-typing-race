@@ -26,7 +26,7 @@ function harness() {
     rooms,
     scheduler,
     broadcasts,
-    set(at: number) {
+    set: (at: number): void => {
       now = at;
     },
   };
