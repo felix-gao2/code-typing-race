@@ -1,7 +1,7 @@
 import { isLinePreset, LANGUAGES, LINE_PRESETS, type Language } from '@ctr/generator';
 import { NAME_MAX, type Player } from '@ctr/shared-types';
-import { useEffect, useState } from 'react';
-import { openRoom, quickmatch, roomLink } from './race/api.ts';
+import { useEffect, useRef, useState } from 'react';
+import { openRoom, quickmatch, roomLink, submitRun } from './race/api.ts';
 import { loadPlayer, savePlayer } from './player.ts';
 import { RacePage } from './race/RacePage.tsx';
 import { bestKey, compareToBest, readBest, saveBest } from './solo/bests.ts';
@@ -77,6 +77,29 @@ function SoloPage() {
         mark.best,
       )
     : undefined;
+
+  // The server keeps its own record, recomputed from the keystream — the
+  // personal best above is local and the board is not. A run is submitted once
+  // and only once, which the key of the attempt is what identifies.
+  const [submitError, setSubmitError] = useState<string | undefined>(undefined);
+  const submitted = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!run.finished || submitted.current === run.runKey) {
+      return;
+    }
+    submitted.current = run.runKey;
+    submitRun({
+      language,
+      lines,
+      seed: run.seed,
+      player,
+      events: run.keystream,
+    }).catch((error: unknown) =>
+      // Surfaced rather than swallowed. The run still counts locally; what was
+      // lost is the board entry, and saying so beats a silent gap in it.
+      setSubmitError(error instanceof Error ? error.message : 'the run was not recorded'),
+    );
+  }, [run.finished, run.runKey, run.seed, run.keystream, language, lines, player]);
 
   // Writing is the only part that touches the browser, so it is the only part
   // in an effect. Repeating it for the same run changes nothing.
@@ -181,6 +204,7 @@ function SoloPage() {
         </p>
       )}
       {raceError !== undefined && <p className="hint">{raceError}</p>}
+      {submitError !== undefined && <p className="hint">not recorded: {submitError}</p>}
 
       {run.finished ? (
         <Results
