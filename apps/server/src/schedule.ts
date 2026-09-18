@@ -12,12 +12,26 @@ import type { Room, Rooms } from './rooms.ts';
 export type OnAdvance = (room: Room) => void;
 
 export class Scheduler {
+  private readonly rooms: Rooms;
+  private readonly onAdvance: OnAdvance;
+  private readonly now: () => number;
+
+  /**
+   * Fields are declared and assigned rather than written as constructor
+   * parameter properties: Node runs this file by stripping the types, and
+   * strip-only mode cannot handle a parameter property because it would have
+   * to emit an assignment rather than erase a token.
+   */
   constructor(
-    private readonly rooms: Rooms,
-    private readonly onAdvance: OnAdvance,
+    rooms: Rooms,
+    onAdvance: OnAdvance,
     /** Injected so tests can drive the clock instead of waiting on one. */
-    private readonly now: () => number = () => Date.now(),
-  ) {}
+    now: () => number = () => Date.now(),
+  ) {
+    this.rooms = rooms;
+    this.onAdvance = onAdvance;
+    this.now = now;
+  }
 
   /**
    * Brings a room up to the present and arms its next deadline. Safe to call
