@@ -281,3 +281,31 @@ describe('isRunning', () => {
     expect(isRunning(racer(done, 'b')!)).toBe(true);
   });
 });
+
+describe('startedWith', () => {
+  it('records how many were present when the race started', () => {
+    const started = racing();
+    expect(started.startedWith).toBe(2);
+  });
+
+  it('is one when someone started alone on a wait timeout', () => {
+    const alone = apply(race({ waitTimeoutMs: 10_000 }), { type: 'join', id: 'a', at: 0 });
+    const counting = tick(alone, 10_000).state;
+    expect(counting.phase).toBe('countdown');
+
+    const started = tick(counting, 10_000 + CONFIG.countdownMs).state;
+    expect(started.phase).toBe('racing');
+    expect(started.startedWith).toBe(1);
+  });
+
+  it('does not shrink when a racer leaves mid-race', () => {
+    // The surviving count would say one; what happened is that two raced.
+    const left = apply(racing(), { type: 'leave', id: 'b', at: 9000 });
+    expect(left.racers).toHaveLength(1);
+    expect(left.startedWith).toBe(2);
+  });
+
+  it('is absent before the race starts', () => {
+    expect(race().startedWith).toBeUndefined();
+  });
+});
