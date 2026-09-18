@@ -1,5 +1,7 @@
-import { isLinePreset, LANGUAGES, LINE_PRESETS, type Language } from '@ctr/generator';
+import { isLinePreset, LINE_PRESETS } from '@ctr/generator';
 import { and, desc, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm';
+import { z } from 'zod';
+import { firstError, languageSchema } from '../io.ts';
 import type { Db } from './index.ts';
 import { runs, snippets } from './schema.ts';
 
@@ -37,32 +39,39 @@ export function startOfDay(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-/**
- * Reads a board request off a query string. Only the presets have boards: a
- * custom length would give nearly every run a board of its own, which is the
- * same reason a custom-length run is never ranked in the first place.
- */
-export function parseBoardQuery(params: Record<string, unknown>, now: Date): BoardQuery {
-  const { kind, language, lines, span } = params;
+const LINES_ERROR = `lines must be one of ${LINE_PRESETS.join(', ')}`;
 
-  if (kind !== 'solo' && kind !== 'multiplayer') {
-    throw new Error('kind must be solo or multiplayer');
+/**
+ * A board request, as it arrives on a query string — where everything is a
+ * string, so `lines` is coerced rather than checked. Only the presets have
+ * boards: a custom length would give nearly every run a board of its own,
+ * which is the same reason a custom-length run is never ranked in the first
+ * place.
+ */
+export const boardQuerySchema = z.object({
+  kind: z.enum(['solo', 'multiplayer'], { error: 'kind must be solo or multiplayer' }),
+  language: languageSchema,
+  // `Number('twenty')` is NaN and `z.number()` refuses NaN, so a word fails
+  // here the same way a non-preset number does, with the same message.
+  lines: z.coerce
+    .number({ error: LINES_ERROR })
+    .int({ error: LINES_ERROR })
+    .refine(isLinePreset, { error: LINES_ERROR }),
+  span: z.enum(['daily', 'all-time'], { error: 'span must be daily or all-time' }).optional(),
+});
+
+/** Reads a board request off a query string, dated against `now`. */
+export function parseBoardQuery(params: Record<string, unknown>, now: Date): BoardQuery {
+  const asked = boardQuerySchema.safeParse(params);
+  if (!asked.success) {
+    throw new Error(firstError(asked.error));
   }
-  if (typeof language !== 'string' || !LANGUAGES.includes(language as Language)) {
-    throw new Error(`language must be one of ${LANGUAGES.join(', ')}`);
-  }
-  const count = Number(lines);
-  if (!Number.isInteger(count) || !isLinePreset(count)) {
-    throw new Error(`lines must be one of ${LINE_PRESETS.join(', ')}`);
-  }
-  if (span !== undefined && span !== 'daily' && span !== 'all-time') {
-    throw new Error('span must be daily or all-time');
-  }
+  const { kind, language, lines, span } = asked.data;
 
   return {
     kind,
     language,
-    lines: count,
+    lines,
     ...(span === 'daily' ? { since: startOfDay(now) } : {}),
   };
 }
