@@ -37,6 +37,45 @@ export async function openRoom(language: Language, lines: number): Promise<Opene
   return (await response.json()) as OpenedRoom;
 }
 
+/**
+ * Asks the server for a public race to join. Uses a short-lived socket rather
+ * than an HTTP route because matchmaking is a socket concern and the client is
+ * about to open one anyway.
+ */
+export async function quickmatch(language: Language, lines: number): Promise<string> {
+  const { io } = await import('socket.io-client');
+  const socket = io(SERVER_URL, { transports: ['websocket'] });
+
+  try {
+    return await new Promise<string>((resolve, reject) => {
+      const giveUp = setTimeout(() => reject(new Error('the race server did not answer')), 5000);
+
+      socket.on('connect_error', () => {
+        clearTimeout(giveUp);
+        reject(new Error('cannot reach the race server'));
+      });
+
+      socket.on('connect', () => {
+        socket.emit(
+          'quickmatch',
+          { language, lines },
+          (ack: { ok: boolean; id?: string; error?: string }) => {
+            clearTimeout(giveUp);
+            if (ack.ok && ack.id !== undefined) {
+              resolve(ack.id);
+            } else {
+              reject(new Error(ack.error ?? 'could not find a race'));
+            }
+          },
+        );
+      });
+    });
+  } finally {
+    // The race page opens its own socket; this one only asked a question.
+    socket.disconnect();
+  }
+}
+
 /** The link to paste. Room codes are meant to travel through chat messages. */
 export function roomLink(id: string): string {
   return `${window.location.origin}/r/${id}`;
