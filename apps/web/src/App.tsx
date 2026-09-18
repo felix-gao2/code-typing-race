@@ -1,6 +1,7 @@
 import { isLinePreset, LANGUAGES, LINE_PRESETS, type Language } from '@ctr/generator';
 import { useEffect, useState } from 'react';
 import { openRoom, quickmatch, roomLink } from './race/api.ts';
+import { loadPlayer, NAME_MAX, savePlayer, type Player } from './player.ts';
 import { RacePage } from './race/RacePage.tsx';
 import { bestKey, compareToBest, readBest, saveBest } from './solo/bests.ts';
 import { Results, Stat } from './solo/Results.tsx';
@@ -36,6 +37,19 @@ function SoloPage() {
   const [lines, setLines] = useState<number>(20);
   const run = useRun(language, lines);
   const { metrics } = run;
+  const [player, setPlayer] = useState<Player>(() =>
+    loadPlayer(window.localStorage, () => crypto.randomUUID()),
+  );
+  // The name is edited raw and cleaned when the field is left: cleaning on
+  // every keystroke would swallow the space someone is in the middle of
+  // typing, and the limits only have to hold by the time it is stored.
+  const [nameDraft, setNameDraft] = useState(player.name);
+  const commitName = (): void => {
+    const saved = savePlayer(window.localStorage, { id: player.id, name: nameDraft });
+    setPlayer(saved);
+    setNameDraft(saved.name);
+  };
+
   const [invite, setInvite] = useState<string | undefined>(undefined);
   const [raceError, setRaceError] = useState<string | undefined>(undefined);
 
@@ -137,6 +151,19 @@ function SoloPage() {
           aria-label="Lines"
         />
         {!isLinePreset(lines) && <span className="hint">custom · unranked</span>}
+        <input
+          type="text"
+          value={nameDraft}
+          maxLength={NAME_MAX}
+          onChange={(event) => setNameDraft(event.target.value)}
+          onBlur={commitName}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.currentTarget.blur();
+            }
+          }}
+          aria-label="Name"
+        />
         <span className="seed">seed {run.seed}</span>
         <span className="hint">tab · new snippet &nbsp; esc · retry this one</span>
         <button type="button" onClick={findRace}>
