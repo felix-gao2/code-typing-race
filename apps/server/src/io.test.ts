@@ -1,7 +1,7 @@
 import type { RaceConfig } from '@ctr/race-machine';
 import { mapTarget, type InputEvent } from '@ctr/typing-engine';
 import { describe, expect, it } from 'vitest';
-import { verify, viewOf } from './io.ts';
+import { runRecordOf, snippetOf, verify, viewOf } from './io.ts';
 import { Rooms, type Room, type RoomRequest } from './rooms.ts';
 
 const CONFIG: RaceConfig = {
@@ -199,5 +199,44 @@ describe('ranked', () => {
       const target = startedPublic(2, lines);
       expect(verify(target, 'r0', { events: perfectRun(target.state.text) }).ranked).toBe(true);
     }
+  });
+});
+
+describe('runRecordOf', () => {
+  const result = (() => {
+    const target = room();
+    return verify(target, 'a', { events: perfectRun(target.state.text) });
+  })();
+
+  it('cleans the name the client sent, which is the one field it chooses', () => {
+    const record = runRecordOf(result, { id: 'p1', name: '  fe‮lix 🙂  ' }, 5000, 'race-1');
+
+    expect(record.playerName).toBe('felix');
+  });
+
+  it('never stores an empty name', () => {
+    expect(runRecordOf(result, { id: 'p1', name: '   ' }, 5000).playerName).toBe('anon');
+  });
+
+  it('leaves a solo run with no race, so the two boards cannot mix', () => {
+    expect(runRecordOf(result, { id: 'p1', name: 'felix' }, 5000).raceId).toBeUndefined();
+  });
+
+  it('carries the result the server computed, not anything a client said', () => {
+    const record = runRecordOf(result, { id: 'p1', name: 'felix' }, 5000, 'race-1');
+
+    expect(record.wpm).toBe(result.metrics.wpm);
+    expect(record.accuracy).toBe(1);
+    expect(record.ranked).toBe(result.ranked);
+    expect(record.finishedAt).toStrictEqual(new Date(5000));
+  });
+
+  it('identifies a snippet by exactly the four columns that decide its text', () => {
+    expect(Object.keys(snippetOf(result)).sort()).toStrictEqual([
+      'generatorVersion',
+      'language',
+      'lines',
+      'seed',
+    ]);
   });
 });
