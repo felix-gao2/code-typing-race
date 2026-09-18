@@ -1,0 +1,1 @@
+ALTER TABLE "snippets" ALTER COLUMN "seed" SET DATA TYPE bigint;

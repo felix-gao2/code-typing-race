@@ -1,4 +1,5 @@
 import {
+  bigint,
   boolean,
   integer,
   pgTable,
@@ -30,7 +31,9 @@ export const snippets = pgTable(
     generatorVersion: integer('generator_version').notNull(),
     language: text('language').notNull(),
     lines: integer('lines').notNull(),
-    seed: integer('seed').notNull(),
+    // bigint, not integer: a seed is an unsigned 32-bit value and Postgres
+    // integers are signed, so half of every seed drawn would be out of range.
+    seed: bigint('seed', { mode: 'number' }).notNull(),
   },
   (table) => [
     unique('snippets_identity').on(table.generatorVersion, table.language, table.lines, table.seed),
