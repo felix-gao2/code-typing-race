@@ -187,6 +187,129 @@ describe('generateSnippet', () => {
       ].join('\n'),
     );
   });
+
+  /**
+   * A seventh, eighth and ninth pin, chosen for what they contain rather
+   * than picked at random like the six above.
+   *
+   * The six were not enough: the float-equality fix moved 1227 lines of
+   * corpus output without touching one of them, because not one held a
+   * double comparison. These were selected by scoring every seed under 600
+   * for construct coverage and taking the best. Between them they hold a
+   * double compared by ordering, a modulus, a do-while, two levels of
+   * nesting, a compound assignment, a boolean declaration and a print.
+   * Python has no do-while, so its pin is the best of the rest.
+   */
+  it('matches the pinned Java output for seed 153, 35 lines', () => {
+    expect(generateSnippet({ seed: 153, language: 'java', lines: 35 })).toBe(
+      [
+        'int n = 8;',
+        'double rate = 8.7;',
+        '',
+        'for (int i = 0; i < 3; i++) {',
+        '    n = 7 % i;',
+        '    rate = 11.4;',
+        '    for (int j = 0; j < n; j++) {',
+        '        n = 20;',
+        '    }',
+        '}',
+        '',
+        'for (int i = 0; i < 5; i++) {',
+        '    System.out.println(i);',
+        '    do {',
+        '        n += i;',
+        '        boolean ok = false;',
+        '        rate += 2.5;',
+        '    } while (n != 10);',
+        '}',
+        '',
+        'if (n > 4) {',
+        '    String text = "bn1";',
+        '    n *= 3;',
+        '}',
+        '',
+        'n -= 2;',
+        '',
+        'if (rate > 7.4) {',
+        '    System.out.println(n);',
+        '}',
+        '',
+        'rate = 56.8;',
+        'n -= 7;',
+        'boolean valid = rate <= 5.4;',
+        'rate = 0.4;',
+      ].join('\n'),
+    );
+  });
+
+  it('matches the pinned TypeScript output for seed 153, 35 lines', () => {
+    expect(generateSnippet({ seed: 153, language: 'typescript', lines: 35 })).toBe(
+      [
+        'let n = 8;',
+        'let rate = 8.7;',
+        '',
+        'for (let i = 0; i < 3; i++) {',
+        '    n = 7 % i;',
+        '    rate = 11.4;',
+        '    for (let j = 0; j < n; j++) {',
+        '        n = 20;',
+        '    }',
+        '}',
+        '',
+        'for (let i = 0; i < 5; i++) {',
+        '    console.log(i);',
+        '    do {',
+        '        n += i;',
+        '        let ok = false;',
+        '        rate += 2.5;',
+        '    } while (n !== 10);',
+        '}',
+        '',
+        'if (n > 4) {',
+        '    let text = "bn1";',
+        '    n *= 3;',
+        '}',
+        '',
+        'n -= 2;',
+        '',
+        'if (rate > 7.4) {',
+        '    console.log(n);',
+        '}',
+        '',
+        'rate = 56.8;',
+        'n -= 7;',
+        'let valid = rate <= 5.4;',
+        'rate = 0.4;',
+      ].join('\n'),
+    );
+  });
+
+  it('matches the pinned Python output for seed 131, 20 lines', () => {
+    expect(generateSnippet({ seed: 131, language: 'python', lines: 20 })).toBe(
+      [
+        'n = 3',
+        'factor = 0.7',
+        '',
+        'for i in range(n):',
+        '    if factor >= 9.4:',
+        '        print(i)',
+        '        done = factor > 0.9',
+        '        n += 8',
+        '    if factor >= 0.2:',
+        '        factor = 61.1',
+        '        n = 97',
+        '        mode = "a91"',
+        '    for j in range(12):',
+        '        n = 6 % j',
+        '',
+        'prefix = "uv5"',
+        '',
+        'for i in range(8):',
+        '    prefix = "az"',
+        '    factor *= 7.8',
+      ].join('\n'),
+    );
+  });
 });
 
 /**
