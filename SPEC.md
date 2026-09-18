@@ -31,8 +31,13 @@ A race record **must** store which kind it was, from day one — retrofitting
 means dirty data. Private-room results never reach either leaderboard.
 
 Public matchmaking will be thin at launch and that's accepted. Build private
-rooms first: they work with two real people and demo by sending a link. What
-happens to someone alone in a public race is **undecided** (see `PROGRESS.md`).
+rooms first: they work with two real people and demo by sending a link.
+**Someone alone in a public race starts anyway after ten seconds**, rather than
+waiting for company a quiet site may never send — but a race that started with
+one person is **never ranked**. A dead end is worse than a solo run; a
+leaderboard full of solo runs wearing a race's clothes is worse than both.
+There is no queue as such: a public race still in `waiting` *is* the queue, so
+the second person to arrive joins the first one's race.
 
 **Ghosts — last run only.** One ghost per snippet per user, in localStorage,
 overwritten each run. After a solo run, offer "race your last run." No ghost
@@ -305,6 +310,12 @@ length preset** so a 10-line run never competes with a 35-line one.
 Within a board: ranked by **WPM**, accuracy as tiebreaker, **≥90% accuracy to
 qualify** (without a floor the top is people spamming at 60%), **one entry per
 player** (their best), in **daily and all-time** variants.
+
+**A result reaches the multiplayer board only if all three hold:** it was a
+public race, **at least two people actually started it**, and the length is one
+of the ranked presets. The middle condition is recorded when the race starts,
+not counted afterwards — someone who quits mid-race is removed, and the
+surviving count would under-report what happened.
 
 This is the Monkeytype model — everyone types different random text and still
 shares a board. Per-snippet boards were the earlier plan and are dropped: with
