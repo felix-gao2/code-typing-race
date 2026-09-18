@@ -314,13 +314,29 @@ function genExpr(ctx: Ctx, type: ValueType, depth: number, exclude: readonly str
     const generated = genExpr(ctx, type, depth + 1, exclude);
     // `i - i` and `48 % 48` are noise, and `x % x` is a division by nothing.
     const right = sameOperand(left, generated) ? otherThan(ctx, type, generated) : generated;
-    return {
-      kind: 'binary',
-      op,
-      // `1 * 12` and `% 1` are arithmetic that does nothing.
-      left: degenerate ? atLeastTwo(ctx, left) : left,
-      right: degenerate ? atLeastTwo(ctx, right) : right,
-    };
+    // `1 * 12` and `% 1` are arithmetic that does nothing.
+    const leftOperand = degenerate ? atLeastTwo(ctx, left) : left;
+    const rightOperand = degenerate ? atLeastTwo(ctx, right) : right;
+
+    // `limit = 12 - 7;` is a constant with extra steps — a compiler folds it
+    // and a reader does too. At least one side has to be a variable, so the
+    // arithmetic is about something.
+    if (leftOperand.kind !== 'ref' && rightOperand.kind !== 'ref') {
+      const inScope = available(ctx.table.visibleOfType(type), exclude);
+      if (inScope.length === 0) {
+        // Nothing to name yet — the first declaration in a snippet has an
+        // empty scope. A plain literal beats a folded sum.
+        return genLiteral(ctx, type, depth > 0);
+      }
+      return {
+        kind: 'binary',
+        op,
+        left: { kind: 'ref', name: ctx.rng.pick(inScope).name, type },
+        right: rightOperand,
+      };
+    }
+
+    return { kind: 'binary', op, left: leftOperand, right: rightOperand };
   }
 
   const inScope = available(ctx.table.visibleOfType(type), exclude);

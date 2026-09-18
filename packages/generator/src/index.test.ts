@@ -62,13 +62,13 @@ describe('generateSnippet', () => {
         'double weight = 11.7;',
         'String name = "lrf";',
         'int n = 5;',
-        'weight = 7.1 - 9.6;',
+        'weight = 29.5;',
         '',
-        'if (n >= 10) {',
-        '    System.out.println(n);',
+        'for (int i = 0; i < 10; i++) {',
+        '    System.out.println(i);',
         '}',
         '',
-        'boolean ok = false;',
+        'System.out.println(n);',
       ].join('\n'),
     );
   });
@@ -106,13 +106,13 @@ describe('generateSnippet', () => {
         'let weight = 11.7;',
         'let name = "lrf";',
         'let n = 5;',
-        'weight = 7.1 - 9.6;',
+        'weight = 29.5;',
         '',
-        'if (n >= 10) {',
-        '    console.log(n);',
+        'for (let i = 0; i < 10; i++) {',
+        '    console.log(i);',
         '}',
         '',
-        'let ok = false;',
+        'console.log(n);',
       ].join('\n'),
     );
   });
@@ -150,13 +150,13 @@ describe('generateSnippet', () => {
         'weight = 11.7',
         'name = "lrf"',
         'n = 5',
-        'weight = 7.1 - 9.6',
+        'weight = 29.5',
         '',
-        'if n >= 10:',
-        '    print(n)',
+        'for i in range(10):',
+        '    print(i)',
         '',
-        'ok = False',
-        'name = "y7y"',
+        'print(n)',
+        'found = n >= 12',
       ].join('\n'),
     );
   });
@@ -235,6 +235,32 @@ describe.each(LANGUAGES)('generated %s', (language) => {
         expect(line.trim(), `${lines}/${seed}`).not.toMatch(/^(\w+) = \1;?$/);
       }
     }
+  });
+
+  it('never does arithmetic on two literals', () => {
+    // `limit = 12 - 7;` is a constant with extra steps: a compiler folds it
+    // and so does a reader. Arithmetic should be about something.
+    for (const { text, lines, seed } of snippets) {
+      for (const line of text.split('\n')) {
+        // String contents are not expressions.
+        const code = line
+          .split('"')
+          .filter((_, i) => i % 2 === 0)
+          .join(' ');
+        expect(code, `${lines}/${seed}`).not.toMatch(
+          /(?:^|[^\w.])\d+(?:\.\d+)? [-+*%] \d+(?:\.\d+)?(?![\w.])/,
+        );
+      }
+    }
+  });
+
+  it('still does arithmetic on a variable across the corpus', () => {
+    // Without this, the test above would also pass if arithmetic vanished.
+    expect(
+      snippets.some(({ text }) =>
+        /\b[a-z]\w* [-+*%] \d+(?:\.\d+)?|\d+(?:\.\d+)? [-+*%] \b[a-z]/.test(text),
+      ),
+    ).toBe(true);
   });
 
   it('never compares a double for equality', () => {
