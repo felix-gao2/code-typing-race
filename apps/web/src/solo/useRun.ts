@@ -6,6 +6,12 @@ import type { InputIntent } from './input.ts';
 
 export interface Run {
   readonly seed: number;
+  /**
+   * Everything that identifies this attempt: the text plus how many times it
+   * has been retried. Changes on a retry even though the text does not, which
+   * is what lets a caller tell one attempt from the next.
+   */
+  readonly runKey: string;
   readonly state: RunState;
   readonly metrics: RunMetrics;
   readonly finished: boolean;
@@ -35,7 +41,8 @@ export function useRun(language: Language, lines: number): Run {
   // A run is identified by everything that would change the text, plus the
   // attempt — retrying the same snippet has to start a new run even though
   // nothing about the text moved.
-  const run = useTypingRun(text, `${language}:${lines}:${seed}:${attempt}`);
+  const runKey = `${language}:${lines}:${seed}:${attempt}`;
+  const run = useTypingRun(text, runKey);
 
   const newSnippet = useCallback(() => setIdentity({ seed: randomSeed(), attempt: 0 }), []);
   const retry = useCallback(
@@ -45,6 +52,7 @@ export function useRun(language: Language, lines: number): Run {
 
   return {
     seed,
+    runKey,
     state: run.state,
     metrics: run.metrics,
     finished: run.finished,
