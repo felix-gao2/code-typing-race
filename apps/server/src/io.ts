@@ -55,8 +55,15 @@ export const linesSchema = z
   .min(1, { error: LINES_ERROR })
   .max(200, { error: LINES_ERROR });
 
-/** Opening a room and asking for a public match are the same two fields. */
-export const raceRequestSchema = z.object({ language: languageSchema, lines: linesSchema });
+/**
+ * Opening a room and asking for a public match are the same two fields. The
+ * message on the object itself is for a request that sent no body at all,
+ * which would otherwise be answered in Zod's words rather than ours.
+ */
+export const raceRequestSchema = z.object(
+  { language: languageSchema, lines: linesSchema },
+  { error: 'expected a language and a line count' },
+);
 
 const KEYSTROKE_ERROR = 'events must all be keystrokes';
 
@@ -121,7 +128,10 @@ export const playerSchema = z.object(
 export type WirePlayer = z.infer<typeof playerSchema>;
 
 /** What a racer sends when they think they are done. */
-export const submitPayloadSchema = z.object({ events: keystreamSchema, player: playerSchema });
+export const submitPayloadSchema = z.object(
+  { events: keystreamSchema, player: playerSchema },
+  { error: 'expected a keystream and a player' },
+);
 
 export type SubmitPayload = z.infer<typeof submitPayloadSchema>;
 

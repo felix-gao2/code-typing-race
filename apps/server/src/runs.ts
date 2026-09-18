@@ -34,17 +34,20 @@ const SEED_ERROR = 'seed must be a non-negative 32-bit integer';
  * never by its text: the server generates the text itself from these three
  * fields, so a client cannot choose what it claims to have raced on.
  */
-export const soloSubmissionSchema = z.object({
-  language: languageSchema,
-  lines: linesSchema,
-  seed: z
-    .number({ error: SEED_ERROR })
-    .int({ error: SEED_ERROR })
-    .min(0, { error: SEED_ERROR })
-    .max(MAX_SEED, { error: SEED_ERROR }),
-  player: playerSchema,
-  events: keystreamSchema,
-});
+export const soloSubmissionSchema = z.object(
+  {
+    language: languageSchema,
+    lines: linesSchema,
+    seed: z
+      .number({ error: SEED_ERROR })
+      .int({ error: SEED_ERROR })
+      .min(0, { error: SEED_ERROR })
+      .max(MAX_SEED, { error: SEED_ERROR }),
+    player: playerSchema,
+    events: keystreamSchema,
+  },
+  { error: 'expected an object' },
+);
 
 export type SoloSubmission = z.infer<typeof soloSubmissionSchema>;
 
