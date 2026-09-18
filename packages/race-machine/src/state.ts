@@ -66,6 +66,13 @@ export interface RaceState {
   readonly phaseStartedAt?: number;
   /** When `racing` began — the origin every racer's WPM is measured from. */
   readonly startedAt?: number;
+  /**
+   * How many racers were present when the race started. Recorded rather than
+   * counted later: a racer who leaves mid-race is removed, so the surviving
+   * count would under-report what actually happened, and whether a result is
+   * ranked depends on this being the truth.
+   */
+  readonly startedWith?: number;
 }
 
 export function racer(state: RaceState, id: string): Racer | undefined {

@@ -112,7 +112,13 @@ function advance(state: RaceState, now: number): RaceState {
  */
 function onDeadline(state: RaceState, deadline: number): RaceState {
   if (state.phase === 'countdown') {
-    return { ...state, phase: 'racing', phaseStartedAt: deadline, startedAt: deadline };
+    return {
+      ...state,
+      phase: 'racing',
+      phaseStartedAt: deadline,
+      startedAt: deadline,
+      startedWith: state.racers.length,
+    };
   }
   if (state.phase === 'racing') {
     // The race ran its full length. Whoever is still going is out of time,
