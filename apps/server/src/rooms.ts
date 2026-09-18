@@ -6,6 +6,7 @@ import {
   tick,
   type RaceConfig,
   type RaceEvent,
+  type RaceKind,
   type RaceState,
 } from '@ctr/race-machine';
 
@@ -26,6 +27,8 @@ export interface RoomRequest {
   readonly language: Language;
   readonly lines: number;
   readonly config: RaceConfig;
+  /** Private by default; matchmaking opens public ones. */
+  readonly kind?: RaceKind;
 }
 
 export interface Room {
@@ -44,10 +47,7 @@ export interface Room {
 export class Rooms {
   private readonly rooms = new Map<string, Room>();
 
-  /**
-   * Creates a private room. Public matchmaking is a later step and will reuse
-   * this registry with `kind: 'public'`.
-   */
+  /** Opens a room. Private unless the caller says otherwise. */
   open(request: RoomRequest, now: number): Room {
     const id = this.freshId();
     const seed = randomInt(2 ** 31);
@@ -58,7 +58,7 @@ export class Rooms {
       lines: request.lines,
       createdAt: now,
       state: create({
-        kind: 'private',
+        kind: request.kind ?? 'private',
         text: generateSnippet({ seed, language: request.language, lines: request.lines }),
         config: request.config,
       }),
@@ -69,6 +69,23 @@ export class Rooms {
 
   get(id: string): Room | undefined {
     return this.rooms.get(id);
+  }
+
+  /**
+   * Public rooms someone could still be dropped into: right language, right
+   * length, still waiting, and not full. The language and length both have to
+   * match because they decide the snippet — racing different text is not a
+   * race.
+   */
+  joinablePublic(language: Language, lines: number): Room[] {
+    return [...this.rooms.values()].filter(
+      (room) =>
+        room.state.kind === 'public' &&
+        room.language === language &&
+        room.lines === lines &&
+        room.state.phase === 'waiting' &&
+        room.state.racers.length < room.state.config.maxRacers,
+    );
   }
 
   /**
