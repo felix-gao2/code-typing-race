@@ -1,4 +1,4 @@
-import { GENERATOR_VERSION, isLinePreset, LANGUAGES, type Language } from '@ctr/generator';
+import { GENERATOR_VERSION, isLinePreset, LANGUAGES } from '@ctr/generator';
 import type { RaceState } from '@ctr/race-machine';
 import {
   DEFAULT_MODE,
@@ -6,11 +6,11 @@ import {
   isFinished,
   measure,
   replay,
-  type InputEvent,
   type RunMetrics,
 } from '@ctr/typing-engine';
-import { ANONYMOUS, cleanName, type Player } from '@ctr/shared-types';
+import { ANONYMOUS, cleanName } from '@ctr/shared-types';
 import type { Server, Socket } from 'socket.io';
+import { z } from 'zod';
 import { db as defaultDb, type Db } from './db/index.ts';
 import { recordRace, recordRun, type RunRecord, type SnippetIdentity } from './db/store.ts';
 import type { Matchmaker } from './matchmaker.ts';
@@ -25,15 +25,112 @@ import type { Scheduler } from './schedule.ts';
  * submitted keystream.
  */
 
+/**
+ * The wire schemas. They live here, and not in `packages/`, because a package
+ * may not take a dependency and because what a server accepts is a server's
+ * rule: the browser describes what it sends, this decides what is allowed in.
+ * Every message below is parsed through one of these before anything else
+ * looks at it.
+ *
+ * The messages are written for the client, not for a log. Someone reading one
+ * has just had a run refused, and "seed must be a non-negative 32-bit integer"
+ * tells them something that "Invalid input" does not.
+ */
+
+const LINES_ERROR = 'lines must be an integer between 1 and 200';
+
+/** Shared by every route that names a snippet: a race, a room, a solo run. */
+export const languageSchema = z.enum(LANGUAGES, {
+  error: `language must be one of ${LANGUAGES.join(', ')}`,
+});
+
+/**
+ * Any length is playable and only the presets are ranked, so the bound here is
+ * not about boards — it is so that a request cannot ask the generator for ten
+ * thousand lines of work.
+ */
+export const linesSchema = z
+  .number({ error: LINES_ERROR })
+  .int({ error: LINES_ERROR })
+  .min(1, { error: LINES_ERROR })
+  .max(200, { error: LINES_ERROR });
+
+/** Opening a room and asking for a public match are the same two fields. */
+export const raceRequestSchema = z.object({ language: languageSchema, lines: linesSchema });
+
+const KEYSTROKE_ERROR = 'events must all be keystrokes';
+
+/**
+ * One keystroke. Every field repeats the same message on purpose: once the
+ * `kind` matches, Zod reports the field's own complaint rather than the
+ * union's, and to whoever sent it a missing `char` and an unknown `kind` are
+ * one mistake. Naming which of the two shapes it failed to be would explain
+ * nothing to a client that meant to send neither.
+ *
+ * `z.number()` rejects NaN and Infinity on its own, which is what the
+ * hand-rolled `Number.isFinite` check was for.
+ */
+const inputEventSchema = z.discriminatedUnion(
+  'kind',
+  [
+    z.object({
+      kind: z.literal('char'),
+      char: z.string({ error: KEYSTROKE_ERROR }).min(1, { error: KEYSTROKE_ERROR }),
+      at: z.number({ error: KEYSTROKE_ERROR }),
+    }),
+    z.object({ kind: z.literal('backspace'), at: z.number({ error: KEYSTROKE_ERROR }) }),
+  ],
+  { error: KEYSTROKE_ERROR },
+);
+
+/** The longest preset is a few hundred keystrokes; this refuses a flood. */
+const MAX_EVENTS = 20_000;
+
+/** A whole run: the only thing a client can send that the server can check. */
+export const keystreamSchema = z
+  .array(inputEventSchema)
+  .min(1, { error: 'events must be a non-empty array' })
+  .max(MAX_EVENTS, { error: `events must hold at most ${MAX_EVENTS} entries` });
+
+const PLAYER_ERROR = 'player must carry an id';
+
+/**
+ * Who to credit a run to. An id is required and a name is not: a client that
+ * sends no name gets `anon`, which is what `cleanName` would have made of an
+ * empty one anyway — a missing name is not a reason to refuse a run someone
+ * just finished. The name is cleaned again on the way in, because it goes onto
+ * a public board and it is the one field a client chooses the text of.
+ */
+export const playerSchema = z.object(
+  {
+    id: z
+      .string({ error: PLAYER_ERROR })
+      .min(1, { error: PLAYER_ERROR })
+      .max(64, { error: PLAYER_ERROR }),
+    name: z.string({ error: PLAYER_ERROR }).optional(),
+  },
+  { error: PLAYER_ERROR },
+);
+
+/**
+ * A player as it arrives, where the name may be missing. `Player` in
+ * `shared-types` is what the browser holds and always has both; this is the
+ * wire's version of it, and the difference is exactly the `?? ANONYMOUS` in
+ * `runRecordOf`.
+ */
+export type WirePlayer = z.infer<typeof playerSchema>;
+
 /** What a racer sends when they think they are done. */
-export interface SubmitPayload {
-  readonly events: readonly InputEvent[];
-  /**
-   * Who to credit the run to. The name is cleaned again here: it goes onto a
-   * public board, and nothing off the wire is trusted — least of all the one
-   * field a client gets to choose the text of.
-   */
-  readonly player: Player;
+export const submitPayloadSchema = z.object({ events: keystreamSchema, player: playerSchema });
+
+export type SubmitPayload = z.infer<typeof submitPayloadSchema>;
+
+/**
+ * Zod's own `Error.message` is a JSON dump of every issue. A client gets one
+ * sentence naming one field instead, which is all it can act on.
+ */
+export function firstError(error: z.ZodError): string {
+  return error.issues[0]?.message ?? 'invalid request';
 }
 
 /**
@@ -158,11 +255,13 @@ export function attach(
     // would leave the first room without anyone to report it.
     let joined: { roomId: string; racerId: string } | undefined;
 
-    socket.on('join', (roomId: unknown, ack?: (response: unknown) => void) => {
-      if (typeof roomId !== 'string' || joined !== undefined) {
+    socket.on('join', (raw: unknown, ack?: (response: unknown) => void) => {
+      const asked = z.string().safeParse(raw);
+      if (!asked.success || joined !== undefined) {
         ack?.({ ok: false, error: 'bad join' });
         return;
       }
+      const roomId = asked.data;
       const room = rooms.get(roomId);
       if (room === undefined) {
         ack?.({ ok: false, error: 'no such room' });
@@ -189,21 +288,18 @@ export function attach(
      * exactly as it would a private one, so there is only one join path.
      */
     socket.on('quickmatch', (request: unknown, ack?: (response: unknown) => void) => {
-      const { language, lines } = (request ?? {}) as { language?: unknown; lines?: unknown };
-      if (typeof language !== 'string' || !LANGUAGES.includes(language as Language)) {
-        ack?.({ ok: false, error: 'unknown language' });
+      const asked = raceRequestSchema.safeParse(request ?? {});
+      if (!asked.success) {
+        ack?.({ ok: false, error: firstError(asked.error) });
         return;
       }
-      if (typeof lines !== 'number' || !Number.isInteger(lines) || lines < 1 || lines > 200) {
-        ack?.({ ok: false, error: 'lines must be an integer between 1 and 200' });
-        return;
-      }
-      const room = matchmaker.find({ language: language as Language, lines }, now());
+      const room = matchmaker.find(asked.data, now());
       ack?.({ ok: true, id: room.id });
     });
 
     socket.on('progress', (value: unknown) => {
-      if (joined === undefined || typeof value !== 'number' || !Number.isFinite(value)) {
+      const reported = z.number().safeParse(value);
+      if (joined === undefined || !reported.success) {
         return;
       }
       // Advisory only: this moves a progress bar and nothing else. The machine
@@ -211,7 +307,7 @@ export function attach(
       const moved = rooms.dispatch(joined.roomId, {
         type: 'progress',
         id: joined.racerId,
-        progress: value,
+        progress: reported.data,
         at: now(),
       });
       if (moved !== undefined) {
@@ -219,11 +315,13 @@ export function attach(
       }
     });
 
-    socket.on('submit', (payload: unknown, ack?: (response: unknown) => void) => {
-      if (joined === undefined || !isSubmitPayload(payload)) {
+    socket.on('submit', (raw: unknown, ack?: (response: unknown) => void) => {
+      const sent = submitPayloadSchema.safeParse(raw);
+      if (joined === undefined || !sent.success) {
         ack?.({ ok: false, error: 'bad submission' });
         return;
       }
+      const payload = sent.data;
       const room = rooms.get(joined.roomId);
       if (room === undefined) {
         ack?.({ ok: false, error: 'no such room' });
@@ -290,7 +388,7 @@ export function snippetOf(result: VerifiedRun): SnippetIdentity {
  */
 export function runRecordOf(
   result: VerifiedRun,
-  player: Player,
+  player: WirePlayer,
   at: number,
   raceId?: string,
 ): RunRecord {
@@ -320,7 +418,7 @@ function store(
   database: Db | undefined,
   room: Room,
   result: RunResult,
-  player: Player,
+  player: WirePlayer,
   at: number,
 ): void {
   if (database === undefined) {
@@ -343,46 +441,4 @@ function store(
       room.persistedRace = undefined;
       console.error('failed to store run', error);
     });
-}
-
-function isSubmitPayload(value: unknown): value is SubmitPayload {
-  if (typeof value !== 'object' || value === null || !('events' in value)) {
-    return false;
-  }
-  const { events } = value;
-  return Array.isArray(events) && events.every(isInputEvent) && isPlayer(value);
-}
-
-/**
- * An id is required and a name is not. A client that sends no name gets
- * `anon`, which is what `cleanName` would have made of an empty one anyway —
- * a missing name is not a reason to refuse a run someone just finished.
- */
-export function isPlayer(value: object): boolean {
-  const { player } = value as { player?: unknown };
-  if (typeof player !== 'object' || player === null) {
-    return false;
-  }
-  const { id, name } = player as { id?: unknown; name?: unknown };
-  return (
-    typeof id === 'string' &&
-    id !== '' &&
-    id.length <= 64 &&
-    (name === undefined || typeof name === 'string')
-  );
-}
-
-/** Shared with the solo submission route, which validates the same events. */
-export function isInputEvent(value: unknown): value is InputEvent {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const event = value as { kind?: unknown; char?: unknown; at?: unknown };
-  if (typeof event.at !== 'number' || !Number.isFinite(event.at)) {
-    return false;
-  }
-  if (event.kind === 'backspace') {
-    return true;
-  }
-  return event.kind === 'char' && typeof event.char === 'string' && event.char.length > 0;
 }

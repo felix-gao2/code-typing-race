@@ -1,11 +1,4 @@
-import {
-  generateSnippet,
-  GENERATOR_VERSION,
-  isLinePreset,
-  LANGUAGES,
-  type Language,
-} from '@ctr/generator';
-import type { Player } from '@ctr/shared-types';
+import { generateSnippet, GENERATOR_VERSION, isLinePreset } from '@ctr/generator';
 import {
   DEFAULT_MODE,
   ENGINE_VERSION,
@@ -14,7 +7,15 @@ import {
   replay,
   type InputEvent,
 } from '@ctr/typing-engine';
-import { isInputEvent, isPlayer, type VerifiedRun } from './io.ts';
+import { z } from 'zod';
+import {
+  firstError,
+  keystreamSchema,
+  languageSchema,
+  linesSchema,
+  playerSchema,
+  type VerifiedRun,
+} from './io.ts';
 
 /**
  * Solo runs. A race arrives over a socket and the server already knows its
@@ -26,16 +27,26 @@ import { isInputEvent, isPlayer, type VerifiedRun } from './io.ts';
 /** The largest seed the client draws, matching `crypto.getRandomValues`. */
 const MAX_SEED = 2 ** 32 - 1;
 
-/** Long enough for the longest preset, short enough to refuse a flood. */
-const MAX_EVENTS = 20_000;
+const SEED_ERROR = 'seed must be a non-negative 32-bit integer';
 
-export interface SoloSubmission {
-  readonly language: Language;
-  readonly lines: number;
-  readonly seed: number;
-  readonly player: Player;
-  readonly events: readonly InputEvent[];
-}
+/**
+ * A finished solo run as it arrives. The snippet is named by its identity and
+ * never by its text: the server generates the text itself from these three
+ * fields, so a client cannot choose what it claims to have raced on.
+ */
+export const soloSubmissionSchema = z.object({
+  language: languageSchema,
+  lines: linesSchema,
+  seed: z
+    .number({ error: SEED_ERROR })
+    .int({ error: SEED_ERROR })
+    .min(0, { error: SEED_ERROR })
+    .max(MAX_SEED, { error: SEED_ERROR }),
+  player: playerSchema,
+  events: keystreamSchema,
+});
+
+export type SoloSubmission = z.infer<typeof soloSubmissionSchema>;
 
 /**
  * Reads a solo submission off the wire. Throws with a message meant for the
@@ -43,35 +54,11 @@ export interface SoloSubmission {
  * person who ever sees it is someone whose run just vanished.
  */
 export function parseSolo(body: unknown): SoloSubmission {
-  if (typeof body !== 'object' || body === null) {
-    throw new Error('expected an object');
+  const sent = soloSubmissionSchema.safeParse(body);
+  if (!sent.success) {
+    throw new Error(firstError(sent.error));
   }
-  const { language, lines, seed, events } = body as Record<string, unknown>;
-
-  if (typeof language !== 'string' || !LANGUAGES.includes(language as Language)) {
-    throw new Error(`language must be one of ${LANGUAGES.join(', ')}`);
-  }
-  if (typeof lines !== 'number' || !Number.isInteger(lines) || lines < 1 || lines > 200) {
-    throw new Error('lines must be an integer between 1 and 200');
-  }
-  if (typeof seed !== 'number' || !Number.isInteger(seed) || seed < 0 || seed > MAX_SEED) {
-    throw new Error('seed must be a non-negative 32-bit integer');
-  }
-  if (!Array.isArray(events) || events.length === 0) {
-    throw new Error('events must be a non-empty array');
-  }
-  if (events.length > MAX_EVENTS) {
-    throw new Error(`events must hold at most ${MAX_EVENTS} entries`);
-  }
-  if (!events.every(isInputEvent)) {
-    throw new Error('events must all be keystrokes');
-  }
-  if (!isPlayer(body)) {
-    throw new Error('player must carry an id');
-  }
-  const { player } = body as { player: Player };
-
-  return { language: language as Language, lines, seed, player, events };
+  return sent.data;
 }
 
 /**
