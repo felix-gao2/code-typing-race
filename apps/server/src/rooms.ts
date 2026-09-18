@@ -38,7 +38,7 @@ export interface Room {
   readonly createdAt: number;
   state: RaceState;
   /** The timer handle for this room's pending deadline, if one is scheduled. */
-  timer?: ReturnType<typeof setTimeout>;
+  timer?: ReturnType<typeof setTimeout> | undefined;
 }
 
 export class Rooms {
