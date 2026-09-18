@@ -36,9 +36,11 @@ export interface SubmitPayload {
   readonly player: Player;
 }
 
-/** The verified result, as the server computed it. */
-export interface RunResult {
-  readonly racerId: string;
+/**
+ * A run the server recomputed and believes. A solo run is exactly this; a race
+ * run is this plus which racer it belonged to.
+ */
+export interface VerifiedRun {
   readonly metrics: RunMetrics;
   /** Both versions travel with the result, so a stored run can always be told
    * which rules produced it. */
@@ -56,6 +58,11 @@ export interface RunResult {
    * give every run a board of its own.
    */
   readonly ranked: boolean;
+}
+
+/** The verified result of a race run, as the server computed it. */
+export interface RunResult extends VerifiedRun {
+  readonly racerId: string;
 }
 
 /** What every client is shown. The keystream never leaves the server. */
@@ -102,7 +109,16 @@ export function verify(
   racerId: string,
   payload: Pick<SubmitPayload, 'events'>,
 ): RunResult {
-  const state = replay(room.state.text, payload.events, DEFAULT_MODE);
+  // The engine refuses a keystroke past the end of the text, so a keystream
+  // longer than this snippet arrives here as a throw rather than as an
+  // unfinished run. Either way it is a bad submission, and the caller turns
+  // this into an answer for the racer rather than a crash.
+  let state;
+  try {
+    state = replay(room.state.text, payload.events, DEFAULT_MODE);
+  } catch (cause) {
+    throw new Error('submitted keystream is not a run of this snippet', { cause });
+  }
   if (!isFinished(state)) {
     throw new Error('submitted keystream does not finish the snippet');
   }
@@ -258,7 +274,7 @@ export function attach(
 }
 
 /** The four columns a snippet is identified by, and nothing else. */
-export function snippetOf(result: RunResult): SnippetIdentity {
+export function snippetOf(result: VerifiedRun): SnippetIdentity {
   return {
     generatorVersion: result.generatorVersion,
     language: result.language,
@@ -273,7 +289,7 @@ export function snippetOf(result: RunResult): SnippetIdentity {
  * database.
  */
 export function runRecordOf(
-  result: RunResult,
+  result: VerifiedRun,
   player: Player,
   at: number,
   raceId?: string,
@@ -342,7 +358,7 @@ function isSubmitPayload(value: unknown): value is SubmitPayload {
  * `anon`, which is what `cleanName` would have made of an empty one anyway —
  * a missing name is not a reason to refuse a run someone just finished.
  */
-function isPlayer(value: object): boolean {
+export function isPlayer(value: object): boolean {
   const { player } = value as { player?: unknown };
   if (typeof player !== 'object' || player === null) {
     return false;
@@ -356,7 +372,8 @@ function isPlayer(value: object): boolean {
   );
 }
 
-function isInputEvent(value: unknown): value is InputEvent {
+/** Shared with the solo submission route, which validates the same events. */
+export function isInputEvent(value: unknown): value is InputEvent {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
