@@ -323,3 +323,11 @@ describe('the wire schemas', () => {
     expect(firstError(asked.error!).split('\n')).toHaveLength(1);
   });
 });
+
+describe('a request with no body at all', () => {
+  it('is answered in the server’s words rather than the validator’s', () => {
+    const asked = raceRequestSchema.safeParse(undefined);
+
+    expect(firstError(asked.error!)).toBe('expected a language and a line count');
+  });
+});
