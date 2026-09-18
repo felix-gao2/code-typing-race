@@ -141,3 +141,63 @@ describe('viewOf', () => {
     expect(view.events).toBeUndefined();
   });
 });
+
+/**
+ * Three conditions, each of which alone disqualifies a result. This is the
+ * rule that decides what a leaderboard is a record of.
+ */
+describe('ranked', () => {
+  const PUBLIC: RaceConfig = { ...CONFIG, waitTimeoutMs: 10_000 };
+
+  /** A public room whose race started with `racers` people. */
+  function startedPublic(racers: number, lines = 10): Room {
+    const rooms = new Rooms();
+    const target = rooms.open({ language: 'java', lines, config: PUBLIC, kind: 'public' }, 0);
+    for (let i = 0; i < racers; i += 1) {
+      rooms.dispatch(target.id, { type: 'join', id: `r${i}`, at: 0 });
+    }
+    // Either minRacers or the wait timeout gets it counting; both then need
+    // the countdown to elapse.
+    rooms.advance(target.id, PUBLIC.waitTimeoutMs ?? 0);
+    rooms.advance(target.id, (PUBLIC.waitTimeoutMs ?? 0) + PUBLIC.countdownMs);
+    return target;
+  }
+
+  it('ranks a public race that two people started, at a preset length', () => {
+    const target = startedPublic(2);
+    expect(target.state.startedWith).toBe(2);
+    expect(verify(target, 'r0', { events: perfectRun(target.state.text) }).ranked).toBe(true);
+  });
+
+  it('does not rank a race one person started', () => {
+    const target = startedPublic(1);
+    expect(target.state.startedWith).toBe(1);
+    // Playable, and a real run — just not a race.
+    const result = verify(target, 'r0', { events: perfectRun(target.state.text) });
+    expect(result.ranked).toBe(false);
+    expect(result.metrics.progress).toBe(1);
+  });
+
+  it('does not rank a private room, however many raced', () => {
+    const rooms = new Rooms();
+    const target = rooms.open(REQUEST, 0);
+    rooms.dispatch(target.id, { type: 'join', id: 'a', at: 0 });
+    rooms.dispatch(target.id, { type: 'join', id: 'b', at: 0 });
+    rooms.advance(target.id, CONFIG.countdownMs);
+
+    expect(target.state.startedWith).toBe(2);
+    expect(verify(target, 'a', { events: perfectRun(target.state.text) }).ranked).toBe(false);
+  });
+
+  it('does not rank a custom length', () => {
+    const target = startedPublic(2, 17);
+    expect(verify(target, 'r0', { events: perfectRun(target.state.text) }).ranked).toBe(false);
+  });
+
+  it('ranks each of the three presets', () => {
+    for (const lines of [10, 20, 35]) {
+      const target = startedPublic(2, lines);
+      expect(verify(target, 'r0', { events: perfectRun(target.state.text) }).ranked).toBe(true);
+    }
+  });
+});
