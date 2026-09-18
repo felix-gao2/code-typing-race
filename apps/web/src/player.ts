@@ -3,50 +3,24 @@
  * anonymous UUID in localStorage, and the display name is a label on it.
  * Clearing storage means becoming a new player, which is accepted.
  *
- * The name has limits because a name on a public board is a moderation
- * surface whether or not one is wanted — so the limits exist from the first
- * commit rather than after the first board.
+ * Only the storage lives here. What a name is allowed to be is shared with the
+ * server, which cannot trust the one a client sends.
  *
  * The store and the id source both arrive as arguments, which is what keeps
- * the rules testable and the browser out of them.
+ * this testable and the browser out of it.
  */
+
+import { ANONYMOUS, cleanName, type Player } from '@ctr/shared-types';
 
 const STORED_KEY = 'ctr.player';
 
 /** Bumped if the stored shape changes; an older record is replaced, not read. */
 const STORED_VERSION = 1;
 
-export const NAME_MAX = 20;
-
-/** What is left when a name is nothing but spaces or forbidden characters. */
-export const ANONYMOUS = 'anon';
-
 /** The part of `Storage` this needs. `window.localStorage` satisfies it. */
 export interface PlayerStore {
   getItem: (key: string) => string | null;
   setItem: (key: string, value: string) => void;
-}
-
-export interface Player {
-  readonly id: string;
-  readonly name: string;
-}
-
-/**
- * Letters, digits, and a few separators. Deliberately narrow: everything
- * outside it — combining marks, right-to-left overrides, emoji, zero-width
- * joiners — is a way to make one row of a board wreck the rest of it.
- */
-const ALLOWED = /[^\p{L}\p{N} _-]/gu;
-
-/**
- * Trims, strips what is not allowed, collapses runs of spaces, and truncates.
- * Never fails: a name that survives none of that becomes `anon`, because
- * refusing to save a player over their name would cost them their identity.
- */
-export function cleanName(raw: string): string {
-  const cleaned = raw.replace(ALLOWED, '').replace(/\s+/gu, ' ').trim().slice(0, NAME_MAX).trim();
-  return cleaned === '' ? ANONYMOUS : cleaned;
 }
 
 /**

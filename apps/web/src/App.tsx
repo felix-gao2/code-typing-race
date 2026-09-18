@@ -1,7 +1,8 @@
 import { isLinePreset, LANGUAGES, LINE_PRESETS, type Language } from '@ctr/generator';
+import { NAME_MAX, type Player } from '@ctr/shared-types';
 import { useEffect, useState } from 'react';
 import { openRoom, quickmatch, roomLink } from './race/api.ts';
-import { loadPlayer, NAME_MAX, savePlayer, type Player } from './player.ts';
+import { loadPlayer, savePlayer } from './player.ts';
 import { RacePage } from './race/RacePage.tsx';
 import { bestKey, compareToBest, readBest, saveBest } from './solo/bests.ts';
 import { Results, Stat } from './solo/Results.tsx';

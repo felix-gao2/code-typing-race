@@ -35,6 +35,9 @@ importers:
       '@ctr/race-machine':
         specifier: workspace:*
         version: link:../../packages/race-machine
+      '@ctr/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@ctr/typing-engine':
         specifier: workspace:*
         version: link:../../packages/typing-engine
@@ -72,6 +75,9 @@ importers:
       '@ctr/generator':
         specifier: workspace:*
         version: link:../../packages/generator
+      '@ctr/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@ctr/typing-engine':
         specifier: workspace:*
         version: link:../../packages/typing-engine
@@ -93,16 +99,16 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react':
         specifier: ^6.1.1
-        version: 6.1.1(vite@8.3.0(@types/node@24.13.4)(esbuild@0.28.2))
+        version: 6.1.1(vite@8.3.0(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13))
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
       vite:
         specifier: ^8.3.0
-        version: 8.3.0(@types/node@24.13.4)(esbuild@0.28.2)
+        version: 8.3.0(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)
       vitest:
         specifier: ^3.2.0
-        version: 3.2.7(@types/node@24.13.4)(lightningcss@1.33.0)
+        version: 3.2.7(@types/node@24.13.4)(lightningcss@1.33.0)(tsx@4.23.13)
 
   packages/generator:
     devDependencies:
@@ -127,6 +133,18 @@ importers:
       vitest:
         specifier: ^3.2.0
         version: 3.2.7(@types/node@24.13.4)(lightningcss@1.33.0)
+
+  packages/shared-types:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.4
+        version: 24.13.4
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@24.13.4)(lightningcss@1.33.0)(tsx@4.23.13)
 
   packages/typing-engine:
     devDependencies:
@@ -3022,10 +3040,10 @@ snapshots:
       '@typescript-eslint/types': 8.70.0
       eslint-visitor-keys: 5.0.1
 
-  '@vitejs/plugin-react@6.1.1(vite@8.3.0(@types/node@24.13.4)(esbuild@0.28.2))':
+  '@vitejs/plugin-react@6.1.1(vite@8.3.0(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.3.0(@types/node@24.13.4)(esbuild@0.28.2)
+      vite: 8.3.0(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)
 
   '@vitest/expect@3.2.7':
     dependencies:
@@ -4148,7 +4166,7 @@ snapshots:
       lightningcss: 1.33.0
       tsx: 4.23.13
 
-  vite@8.3.0(@types/node@24.13.4)(esbuild@0.28.2):
+  vite@8.3.0(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -4159,6 +4177,7 @@ snapshots:
       '@types/node': 24.13.4
       esbuild: 0.28.2
       fsevents: 2.3.3
+      tsx: 4.23.13
 
   vitest@3.2.7(@types/node@24.13.4)(lightningcss@1.33.0):
     dependencies:

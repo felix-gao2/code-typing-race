@@ -14,6 +14,7 @@
   "dependencies": {
     "@ctr/generator": "workspace:*",
     "@ctr/race-machine": "workspace:*",
+    "@ctr/shared-types": "workspace:*",
     "@ctr/typing-engine": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",

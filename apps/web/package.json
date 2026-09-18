@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ctr/generator": "workspace:*",
+    "@ctr/shared-types": "workspace:*",
     "@ctr/typing-engine": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
