@@ -19,7 +19,8 @@
     "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
     "postgres": "^3.4.9",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
