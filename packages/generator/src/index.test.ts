@@ -237,6 +237,27 @@ describe.each(LANGUAGES)('generated %s', (language) => {
     }
   });
 
+  it('never compares a double for equality', () => {
+    // `ratio == 4.9` is a bug wherever it is written: the literal is not the
+    // value the arithmetic lands on. Nothing here executes, but a snippet
+    // that teaches the eye a mistake is the wrong text to practise on.
+    for (const { text, lines, seed } of snippets) {
+      for (const line of text.split('\n')) {
+        expect(line, `${lines}/${seed}`).not.toMatch(/[=!]==?\s*-?\d+\.\d/);
+        expect(line, `${lines}/${seed}`).not.toMatch(/\d+\.\d\s*[=!]==?/);
+      }
+    }
+  });
+
+  it('still compares doubles across the corpus', () => {
+    // Without this, the test above would also pass if doubles stopped being
+    // compared at all rather than being compared by ordering.
+    const compared = snippets.some(({ text }) =>
+      text.split('\n').some((line) => /[<>]=?/.test(line) && /\d+\.\d/.test(line)),
+    );
+    expect(compared).toBe(true);
+  });
+
   it('never compares a variable with itself', () => {
     for (const { text, lines, seed } of snippets) {
       // Paren-free, because Python conditions have no parentheses to anchor on.

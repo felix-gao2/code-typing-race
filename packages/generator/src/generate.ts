@@ -385,15 +385,20 @@ function genBooleanExpr(ctx: Ctx, exclude: readonly string[] = []): Expr {
   return { kind: 'boolean', value: ctx.rng.chance(0.5) };
 }
 
+/**
+ * Ordering comparisons, which every type may use. Doubles get these and
+ * nothing else: `if (ratio == 4.9)` is a bug in real code — the literal is
+ * not the value the arithmetic lands on — and every linter worth the name
+ * says so. Nothing here executes, but a snippet that teaches the eye a
+ * mistake is still the wrong text to practise on.
+ */
+const ORDERING_OPS = ['<', '<=', '>', '>='] as const satisfies readonly CompareOp[];
+const EQUALITY_OPS = ['==', '!='] as const satisfies readonly CompareOp[];
+
 function comparison(ctx: Ctx, left: Variable, exclude: readonly string[] = []): Expr {
-  const op = ctx.rng.pick([
-    '<',
-    '<=',
-    '>',
-    '>=',
-    '==',
-    '!=',
-  ] as const satisfies readonly CompareOp[]);
+  const op = ctx.rng.pick(
+    left.type === 'double' ? ORDERING_OPS : [...ORDERING_OPS, ...EQUALITY_OPS],
+  );
   return {
     kind: 'compare',
     op,
@@ -418,7 +423,7 @@ function genCondition(ctx: Ctx): Expr {
     const target = ctx.rng.pick(strings);
     return {
       kind: 'compare',
-      op: ctx.rng.pick(['==', '!='] as const satisfies readonly CompareOp[]),
+      op: ctx.rng.pick(EQUALITY_OPS),
       left: { kind: 'ref', name: target.name, type: 'string' },
       right: genLiteral(ctx, 'string'),
     };
