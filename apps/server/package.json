@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --experimental-strip-types --watch src/index.ts",
-    "start": "node --experimental-strip-types src/index.ts",
+    "dev": "node --env-file-if-exists=.env --experimental-strip-types --watch src/index.ts",
+    "start": "node --env-file-if-exists=.env --experimental-strip-types src/index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs migrate",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -13,12 +15,15 @@
     "@ctr/generator": "workspace:*",
     "@ctr/race-machine": "workspace:*",
     "@ctr/typing-engine": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
+    "postgres": "^3.4.9",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^24.13.4",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.6.0",
     "vitest": "^3.2.0"
   }
