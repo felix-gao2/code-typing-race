@@ -43,6 +43,27 @@ const scheduler = new Scheduler(rooms, (room) => io.to(room.id).emit('race', vie
 
 app.use(express.json());
 
+/**
+ * CORS for the HTTP routes. The `cors` option on the Socket.io server covers
+ * the socket handshake and nothing else, so without this the browser blocks
+ * `POST /rooms` before Express ever sees it — and a Node client does not,
+ * which is exactly how it passed a smoke test and failed in a browser.
+ *
+ * Eight lines rather than a dependency, per the rule about both.
+ */
+app.use((request, response, next) => {
+  response.setHeader('Access-Control-Allow-Origin', ORIGIN);
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  // Caches must not serve one origin's response to another.
+  response.setHeader('Vary', 'Origin');
+  if (request.method === 'OPTIONS') {
+    response.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 app.get('/health', (_request, response) => {
   response.json({ ok: true, rooms: rooms.size });
 });
