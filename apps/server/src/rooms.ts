@@ -42,6 +42,12 @@ export interface Room {
   state: RaceState;
   /** The timer handle for this room's pending deadline, if one is scheduled. */
   timer?: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * The stored race row, once someone has finished. Held as the promise rather
+   * than the id so the racers who finish while the insert is in flight wait on
+   * it instead of each inserting a race of their own.
+   */
+  persistedRace?: Promise<string> | undefined;
 }
 
 export class Rooms {
