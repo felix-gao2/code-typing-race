@@ -1,4 +1,5 @@
-import type { RaceConfig } from '@ctr/race-machine';
+import { generateSnippet } from '@ctr/generator';
+import { create, type RaceConfig } from '@ctr/race-machine';
 import { mapTarget, type InputEvent } from '@ctr/typing-engine';
 import { describe, expect, it } from 'vitest';
 import { runRecordOf, snippetOf, verify, viewOf } from './io.ts';
@@ -15,6 +16,30 @@ const REQUEST: RoomRequest = { language: 'java', lines: 10, config: CONFIG };
 
 function room(): Room {
   return new Rooms().open(REQUEST, 0);
+}
+
+/**
+ * A room on a chosen snippet. `Rooms.open` draws its seed at random, which is
+ * right for the server and wrong for a test that compares two snippets.
+ */
+function roomWithSeed(seed: number): Room {
+  return {
+    id: `seed-${seed}`,
+    seed,
+    language: REQUEST.language,
+    lines: REQUEST.lines,
+    createdAt: 0,
+    state: create({
+      kind: 'private',
+      text: generateSnippet({ seed, language: REQUEST.language, lines: REQUEST.lines }),
+      config: CONFIG,
+    }),
+  };
+}
+
+/** Keystrokes a snippet actually costs: leading indentation is never typed. */
+function typeableLength(text: string): number {
+  return mapTarget(text).chars.length;
 }
 
 /**
@@ -78,12 +103,40 @@ describe('verify', () => {
     expect(() => verify(room(), 'a', { events: [] })).toThrow(/does not finish/);
   });
 
-  it('refuses a keystream for a different snippet', () => {
-    const mine = room();
-    const theirs = room();
-    // Two rooms draw different seeds, so one snippet's keystream cannot
-    // complete the other's.
-    expect(() => verify(mine, 'a', { events: perfectRun(theirs.state.text) })).toThrow();
+  it('refuses a keystream for a longer snippet', () => {
+    const mine = roomWithSeed(0);
+    const longer = roomWithSeed(2);
+    expect(typeableLength(longer.state.text)).toBeGreaterThan(typeableLength(mine.state.text));
+    // The engine refuses the keystroke past the end rather than finishing.
+    expect(() => verify(mine, 'a', { events: perfectRun(longer.state.text) })).toThrow(
+      /not a run of this snippet/,
+    );
+  });
+
+  it('refuses a keystream for a shorter snippet', () => {
+    const mine = roomWithSeed(0);
+    const shorter = roomWithSeed(5);
+    expect(typeableLength(shorter.state.text)).toBeLessThan(typeableLength(mine.state.text));
+    expect(() => verify(mine, 'a', { events: perfectRun(shorter.state.text) })).toThrow(
+      /does not finish/,
+    );
+  });
+
+  /**
+   * Permissive mode advances the cursor on a wrong character, so a keystream
+   * from another snippet of the same length does finish this one — two 10-line
+   * Java snippets share a typeable length about 1.3% of the time. Nothing is
+   * won by it, which is the point: the server recomputes from the keystream,
+   * and what comes back is a completed run with almost nothing right.
+   */
+  it('scores a same-length keystream from another snippet as almost all wrong', () => {
+    const mine = roomWithSeed(0);
+    const theirs = roomWithSeed(7);
+    expect(typeableLength(theirs.state.text)).toBe(typeableLength(mine.state.text));
+    const result = verify(mine, 'a', { events: perfectRun(theirs.state.text) });
+    // 5% on this pair; the bound is loose enough to survive a generator bump
+    // and tight enough that it fails if wrong characters stop being charged.
+    expect(result.metrics.accuracy).toBeLessThan(0.2);
   });
 
   it('refuses a keystream whose timestamps run backwards', () => {
