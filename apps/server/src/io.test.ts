@@ -55,7 +55,7 @@ describe('verify', () => {
     const result = verify(target, 'a', { events: perfectRun(target.state.text) });
 
     // A stored run must always be able to say which rules produced it.
-    expect(result.generatorVersion).toBe(8);
+    expect(result.generatorVersion).toBe(9);
     expect(result.engineVersion).toBe(1);
     expect(result.engineMode).toBe('permissive');
     expect(result.seed).toBe(target.seed);
