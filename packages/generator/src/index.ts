@@ -15,7 +15,7 @@ export { CONFIG, LINE_PRESETS, isLinePreset } from './config.ts';
  * identity is (generatorVersion, language, lines, seed), so a silent change
  * would leave ghosts replaying against text that no longer exists.
  */
-export const GENERATOR_VERSION = 8;
+export const GENERATOR_VERSION = 9;
 
 export const LANGUAGES = ['java', 'typescript', 'python'] as const;
 export type Language = (typeof LANGUAGES)[number];

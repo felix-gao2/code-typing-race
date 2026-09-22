@@ -207,37 +207,37 @@ describe('generateSnippet', () => {
         'double rate = 8.7;',
         '',
         'for (int i = 0; i < 3; i++) {',
-        '    n = 7 % i;',
-        '    rate = 11.4;',
-        '    for (int j = 0; j < n; j++) {',
-        '        n = 20;',
+        '    n = i % 2;',
+        '    String mode = "e9f";',
+        '    rate *= 11.5;',
+        '}',
+        '',
+        'if (n < 6) {',
+        '    String mode = "dct";',
+        '}',
+        '',
+        'rate = 85.0;',
+        '',
+        'if (n < 6) {',
+        '    rate = 92.7;',
+        '    if (rate >= 9.9) {',
+        '        n -= 12;',
         '    }',
         '}',
         '',
-        'for (int i = 0; i < 5; i++) {',
-        '    System.out.println(i);',
-        '    do {',
-        '        n += i;',
-        '        boolean ok = false;',
-        '        rate += 2.5;',
-        '    } while (n != 10);',
+        'for (int i = 0; i < n; i++) {',
+        '    rate += 6.9;',
+        '    for (int j = 0; j < 5; j++) {',
+        '        System.out.println(j);',
+        '        System.out.println(i);',
+        '    }',
         '}',
         '',
-        'if (n > 4) {',
-        '    String text = "bn1";',
-        '    n *= 3;',
-        '}',
-        '',
-        'n -= 2;',
-        '',
-        'if (rate > 7.4) {',
-        '    System.out.println(n);',
-        '}',
-        '',
-        'rate = 56.8;',
-        'n -= 7;',
-        'boolean valid = rate <= 5.4;',
-        'rate = 0.4;',
+        'System.out.println(n);',
+        'rate = 17.2;',
+        'String mode = "nu8";',
+        'System.out.println(mode);',
+        'rate = 17.6;',
       ].join('\n'),
     );
   });
@@ -249,37 +249,37 @@ describe('generateSnippet', () => {
         'let rate = 8.7;',
         '',
         'for (let i = 0; i < 3; i++) {',
-        '    n = 7 % i;',
-        '    rate = 11.4;',
-        '    for (let j = 0; j < n; j++) {',
-        '        n = 20;',
+        '    n = i % 2;',
+        '    let mode = "e9f";',
+        '    rate *= 11.5;',
+        '}',
+        '',
+        'if (n < 6) {',
+        '    let mode = "dct";',
+        '}',
+        '',
+        'rate = 85;',
+        '',
+        'if (n < 6) {',
+        '    rate = 92.7;',
+        '    if (rate >= 9.9) {',
+        '        n -= 12;',
         '    }',
         '}',
         '',
-        'for (let i = 0; i < 5; i++) {',
-        '    console.log(i);',
-        '    do {',
-        '        n += i;',
-        '        let ok = false;',
-        '        rate += 2.5;',
-        '    } while (n !== 10);',
+        'for (let i = 0; i < n; i++) {',
+        '    rate += 6.9;',
+        '    for (let j = 0; j < 5; j++) {',
+        '        console.log(j);',
+        '        console.log(i);',
+        '    }',
         '}',
         '',
-        'if (n > 4) {',
-        '    let text = "bn1";',
-        '    n *= 3;',
-        '}',
-        '',
-        'n -= 2;',
-        '',
-        'if (rate > 7.4) {',
-        '    console.log(n);',
-        '}',
-        '',
-        'rate = 56.8;',
-        'n -= 7;',
-        'let valid = rate <= 5.4;',
-        'rate = 0.4;',
+        'console.log(n);',
+        'rate = 17.2;',
+        'let mode = "nu8";',
+        'console.log(mode);',
+        'rate = 17.6;',
       ].join('\n'),
     );
   });
@@ -300,7 +300,7 @@ describe('generateSnippet', () => {
         '        n = 97',
         '        mode = "a91"',
         '    for j in range(12):',
-        '        n = 6 % j',
+        '        n = j % 2',
         '',
         'prefix = "uv5"',
         '',
@@ -422,6 +422,27 @@ describe.each(LANGUAGES)('generated %s', (language) => {
         /\b[a-z]\w* [-+*%] \d+(?:\.\d+)?|\d+(?:\.\d+)? [-+*%] \b[a-z]/.test(text),
       ),
     ).toBe(true);
+  });
+
+  it('never takes a modulus by a loop counter', () => {
+    // `n = 7 % i;` divides by zero on the loop's first pass, because a
+    // counter starts at 0. Nothing here executes, but a reader notices.
+    for (const { text, lines, seed } of snippets) {
+      for (const line of text.split('\n')) {
+        // String contents are not expressions.
+        const code = line
+          .split('"')
+          .filter((_, i) => i % 2 === 0)
+          .join(' ');
+        expect(code, `${lines}/${seed}`).not.toMatch(/%\s*[ijk]\b/);
+      }
+    }
+  });
+
+  it('still takes a modulus by a loop counter on the left', () => {
+    // Without this, the test above would also pass if counters were kept out
+    // of a modulus altogether — `i % 6` is ordinary code and should survive.
+    expect(snippets.some(({ text }) => /\b[ijk] % /.test(text))).toBe(true);
   });
 
   it('never compares a double for equality', () => {

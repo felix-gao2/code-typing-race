@@ -605,7 +605,11 @@ function genExpr(ctx: Ctx, type: ValueType, depth: number, exclude: readonly str
     const op = ctx.rng.pick(ops);
     const degenerate = op === '*' || op === '%';
     const left = genExpr(ctx, type, depth + 1, exclude);
-    const generated = genExpr(ctx, type, depth + 1, exclude);
+    // `7 % i` divides by zero on the loop's first pass. Any variable might
+    // hold zero, but a counter always does to start with, so only counters
+    // are kept off the right of a modulus.
+    const rightExclude = op === '%' ? [...exclude, ...ctx.loopVariables] : exclude;
+    const generated = genExpr(ctx, type, depth + 1, rightExclude);
     // `i - i` and `48 % 48` are noise, and `x % x` is a division by nothing.
     const right = sameOperand(left, generated) ? otherThan(ctx, type, generated) : generated;
     // `1 * 12` and `% 1` are arithmetic that does nothing.
