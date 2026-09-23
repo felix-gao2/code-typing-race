@@ -80,7 +80,7 @@ describe('verify', () => {
     const result = verify(target, 'a', { events: perfectRun(target.state.text) });
 
     // A stored run must always be able to say which rules produced it.
-    expect(result.generatorVersion).toBe(9);
+    expect(result.generatorVersion).toBe(10);
     expect(result.engineVersion).toBe(1);
     expect(result.engineMode).toBe('permissive');
     expect(result.seed).toBe(target.seed);
@@ -131,10 +131,10 @@ describe('verify', () => {
    */
   it('scores a same-length keystream from another snippet as almost all wrong', () => {
     const mine = roomWithSeed(0);
-    const theirs = roomWithSeed(7);
+    const theirs = roomWithSeed(113);
     expect(typeableLength(theirs.state.text)).toBe(typeableLength(mine.state.text));
     const result = verify(mine, 'a', { events: perfectRun(theirs.state.text) });
-    // 5% on this pair; the bound is loose enough to survive a generator bump
+    // 10% on this pair; the bound is loose enough to survive a generator bump
     // and tight enough that it fails if wrong characters stop being charged.
     expect(result.metrics.accuracy).toBeLessThan(0.2);
   });
