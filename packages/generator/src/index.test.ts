@@ -59,16 +59,16 @@ describe('generateSnippet', () => {
   it('matches the pinned Java output for seed 1, 10 lines', () => {
     expect(generateSnippet({ seed: 1, language: 'java', lines: 10 })).toBe(
       [
-        'double weight = 11.7;',
-        'String name = "lrf";',
-        'int n = 5;',
-        'weight = 29.5;',
+        'double weight = 11.3;',
+        'int delta = 6;',
         '',
-        'for (int i = 0; i < n; i++) {',
-        '    System.out.println(i);',
+        'for (int i = 0; i < 3; i++) {',
+        '    for (int j = 0; j < delta; j++) {',
+        '        weight += 8.9;',
+        '        delta *= 12;',
+        '        System.out.println(j);',
+        '    }',
         '}',
-        '',
-        'n = 12;',
       ].join('\n'),
     );
   });
@@ -85,17 +85,17 @@ describe('generateSnippet', () => {
         '        label = "wsh";',
         '        total += 6;',
         '    }',
-        '    double average = 5.8;',
+        '    double average = 5.6;',
         '}',
         '',
-        'for (int i = 0; i < total; i++) {',
-        '    do {',
-        '        System.out.println(label);',
-        '        total -= 9;',
-        '    } while (i != total);',
-        '    total -= i;',
-        '    label = "xl2";',
-        '}',
+        'boolean ok = total >= 10;',
+        '',
+        'do {',
+        '    System.out.println(label);',
+        '    total = 69;',
+        '} while (total != 6);',
+        '',
+        'total -= 7;',
       ].join('\n'),
     );
   });
@@ -103,16 +103,16 @@ describe('generateSnippet', () => {
   it('matches the pinned TypeScript output for seed 1, 10 lines', () => {
     expect(generateSnippet({ seed: 1, language: 'typescript', lines: 10 })).toBe(
       [
-        'let weight = 11.7;',
-        'let name = "lrf";',
-        'let n = 5;',
-        'weight = 29.5;',
+        'let weight = 11.3;',
+        'let delta = 6;',
         '',
-        'for (let i = 0; i < n; i++) {',
-        '    console.log(i);',
+        'for (let i = 0; i < 3; i++) {',
+        '    for (let j = 0; j < delta; j++) {',
+        '        weight += 8.9;',
+        '        delta *= 12;',
+        '        console.log(j);',
+        '    }',
         '}',
-        '',
-        'n = 12;',
       ].join('\n'),
     );
   });
@@ -147,16 +147,16 @@ describe('generateSnippet', () => {
   it('matches the pinned Python output for seed 1, 10 lines', () => {
     expect(generateSnippet({ seed: 1, language: 'python', lines: 10 })).toBe(
       [
-        'weight = 11.7',
-        'name = "lrf"',
-        'n = 5',
-        'weight = 29.5',
+        'weight = 11.3',
+        'delta = 6',
         '',
-        'for i in range(n):',
-        '    print(i)',
+        'for i in range(3):',
+        '    for j in range(delta):',
+        '        weight += 8.9',
+        '        delta *= 12',
+        '        print(j)',
         '',
-        'n = 12',
-        'weight = 86.5',
+        'print(weight)',
       ].join('\n'),
     );
   });
@@ -179,11 +179,11 @@ describe('generateSnippet', () => {
         '        print(label)',
         '    total += 9',
         '',
-        'average = 5.3',
+        'average = 5.4',
+        'print(average)',
+        'label = "iy"',
+        'found = total >= 10',
         'total = 98',
-        'mode = "pmq"',
-        'average -= 11.3',
-        'total *= 2',
       ].join('\n'),
     );
   });
@@ -199,114 +199,117 @@ describe('generateSnippet', () => {
    * double compared by ordering, a modulus, a do-while, two levels of
    * nesting, a compound assignment, a boolean declaration and a print.
    * Python has no do-while, so its pin is the best of the rest.
+   *
+   * Re-chosen the same way at version 10: the old seeds, 153 and 131, had
+   * lost their modulus, and 131 its second level of nesting.
    */
-  it('matches the pinned Java output for seed 153, 35 lines', () => {
-    expect(generateSnippet({ seed: 153, language: 'java', lines: 35 })).toBe(
+  it('matches the pinned Java output for seed 3, 35 lines', () => {
+    expect(generateSnippet({ seed: 3, language: 'java', lines: 35 })).toBe(
       [
-        'int n = 8;',
-        'double rate = 8.7;',
+        'double rate = 9.5;',
+        'int limit = 7;',
+        'String buf = "n4";',
         '',
-        'for (int i = 0; i < 3; i++) {',
-        '    n = i % 2;',
-        '    String mode = "e9f";',
-        '    rate *= 11.5;',
-        '}',
-        '',
-        'if (n < 6) {',
-        '    String mode = "dct";',
-        '}',
-        '',
-        'rate = 85.0;',
-        '',
-        'if (n < 6) {',
-        '    rate = 92.7;',
-        '    if (rate >= 9.9) {',
-        '        n -= 12;',
+        'for (int i = 0; i < 8; i++) {',
+        '    rate *= 8.5;',
+        '    limit *= 10;',
+        '    if (limit != i) {',
+        '        System.out.println(buf);',
         '    }',
         '}',
         '',
-        'for (int i = 0; i < n; i++) {',
-        '    rate += 6.9;',
-        '    for (int j = 0; j < 5; j++) {',
-        '        System.out.println(j);',
-        '        System.out.println(i);',
+        'do {',
+        '    buf = "q99";',
+        '    limit -= 7;',
+        '} while (limit == 10);',
+        '',
+        'limit += 8;',
+        '',
+        'for (int i = 0; i < 4; i++) {',
+        '    while (rate <= 10.1) {',
+        '        boolean valid = rate < 7.6;',
+        '        limit *= i;',
+        '        buf = "p0l";',
+        '        rate -= 1.9;',
+        '    }',
+        '    for (int j = 0; j < 6; j++) {',
+        '        buf = "m2";',
+        '        limit = i % 3;',
+        '    }',
+        '    while (i != limit) {',
+        '        rate = 38.9;',
+        '        limit += i;',
         '    }',
         '}',
-        '',
-        'System.out.println(n);',
-        'rate = 17.2;',
-        'String mode = "nu8";',
-        'System.out.println(mode);',
-        'rate = 17.6;',
       ].join('\n'),
     );
   });
 
-  it('matches the pinned TypeScript output for seed 153, 35 lines', () => {
-    expect(generateSnippet({ seed: 153, language: 'typescript', lines: 35 })).toBe(
+  it('matches the pinned TypeScript output for seed 3, 35 lines', () => {
+    expect(generateSnippet({ seed: 3, language: 'typescript', lines: 35 })).toBe(
       [
-        'let n = 8;',
-        'let rate = 8.7;',
+        'let rate = 9.5;',
+        'let limit = 7;',
+        'let buf = "n4";',
         '',
-        'for (let i = 0; i < 3; i++) {',
-        '    n = i % 2;',
-        '    let mode = "e9f";',
-        '    rate *= 11.5;',
-        '}',
-        '',
-        'if (n < 6) {',
-        '    let mode = "dct";',
-        '}',
-        '',
-        'rate = 85;',
-        '',
-        'if (n < 6) {',
-        '    rate = 92.7;',
-        '    if (rate >= 9.9) {',
-        '        n -= 12;',
+        'for (let i = 0; i < 8; i++) {',
+        '    rate *= 8.5;',
+        '    limit *= 10;',
+        '    if (limit !== i) {',
+        '        console.log(buf);',
         '    }',
         '}',
         '',
-        'for (let i = 0; i < n; i++) {',
-        '    rate += 6.9;',
-        '    for (let j = 0; j < 5; j++) {',
-        '        console.log(j);',
-        '        console.log(i);',
+        'do {',
+        '    buf = "q99";',
+        '    limit -= 7;',
+        '} while (limit === 10);',
+        '',
+        'limit += 8;',
+        '',
+        'for (let i = 0; i < 4; i++) {',
+        '    while (rate <= 10.1) {',
+        '        let valid = rate < 7.6;',
+        '        limit *= i;',
+        '        buf = "p0l";',
+        '        rate -= 1.9;',
+        '    }',
+        '    for (let j = 0; j < 6; j++) {',
+        '        buf = "m2";',
+        '        limit = i % 3;',
+        '    }',
+        '    while (i !== limit) {',
+        '        rate = 38.9;',
+        '        limit += i;',
         '    }',
         '}',
-        '',
-        'console.log(n);',
-        'rate = 17.2;',
-        'let mode = "nu8";',
-        'console.log(mode);',
-        'rate = 17.6;',
       ].join('\n'),
     );
   });
 
-  it('matches the pinned Python output for seed 131, 20 lines', () => {
-    expect(generateSnippet({ seed: 131, language: 'python', lines: 20 })).toBe(
+  it('matches the pinned Python output for seed 482, 20 lines', () => {
+    expect(generateSnippet({ seed: 482, language: 'python', lines: 20 })).toBe(
       [
-        'n = 3',
-        'factor = 0.7',
+        'total = 3',
+        'scale = 2.1',
         '',
-        'for i in range(n):',
-        '    if factor >= 9.4:',
-        '        print(i)',
-        '        done = factor > 0.9',
-        '        n += 8',
-        '    if factor >= 0.2:',
-        '        factor = 61.1',
-        '        n = 97',
-        '        mode = "a91"',
-        '    for j in range(12):',
-        '        n = j % 2',
+        'while total <= 7:',
+        '    total = 45',
         '',
-        'prefix = "uv5"',
+        'if scale < 7.4:',
+        '    size = 7',
+        '    if scale < 0.7:',
+        '        total *= 12',
+        '        size = total % 9',
+        '        label = "hby"',
+        '    total = 9 % size',
         '',
-        'for i in range(8):',
-        '    prefix = "az"',
-        '    factor *= 7.8',
+        'print(total)',
+        'scale -= 2.4',
+        '',
+        'for i in range(total):',
+        '    print(scale)',
+        '    ok = True',
       ].join('\n'),
     );
   });
@@ -464,6 +467,15 @@ describe.each(LANGUAGES)('generated %s', (language) => {
       text.split('\n').some((line) => /[<>]=?/.test(line) && /\d+\.\d/.test(line)),
     );
     expect(compared).toBe(true);
+  });
+
+  it('never generates a whole-numbered double', () => {
+    // TypeScript has no idiomatic spelling for one — `5.0` is decoration
+    // there and `5` stops reading as a double — so none are generated, and
+    // a double reads as one in every language.
+    for (const { text, lines, seed } of snippets) {
+      expect(text, `${lines}/${seed}`).not.toMatch(/\d\.0(?!\d)/);
+    }
   });
 
   it('never compares a variable with itself', () => {

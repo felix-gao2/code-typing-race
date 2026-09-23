@@ -664,7 +664,7 @@ function atLeastTwo(ctx: Ctx, expr: Expr): Expr {
     return { kind: 'int', value: ctx.rng.int(2, OPERAND_MAX) };
   }
   if (expr.kind === 'double' && expr.tenths < 20) {
-    return { kind: 'double', tenths: ctx.rng.int(20, OPERAND_MAX * 10) };
+    return fractional(ctx, 2, OPERAND_MAX - 1);
   }
   return expr;
 }
@@ -679,7 +679,9 @@ function otherThan(ctx: Ctx, type: ValueType, clash: Expr): Expr {
     return { kind: 'int', value: replacement.value + 1 };
   }
   if (replacement.kind === 'double') {
-    return { kind: 'double', tenths: replacement.tenths + 1 };
+    // Stepping over a whole number: 5.9 becomes 6.1, never 6.0.
+    const tenths = replacement.tenths + 1;
+    return { kind: 'double', tenths: tenths % 10 === 0 ? tenths + 1 : tenths };
   }
   return replacement;
 }
@@ -753,6 +755,15 @@ function genCondition(ctx: Ctx): Expr {
   return { kind: 'boolean', value: true };
 }
 
+/**
+ * A double with a nonzero tenths digit. A whole-numbered one has no honest
+ * TypeScript spelling — `5.0` is decoration there and `5` reads as an int —
+ * so none are generated, and a double looks like one in every language.
+ */
+function fractional(ctx: Ctx, minWhole: number, maxWhole: number): Expr {
+  return { kind: 'double', tenths: ctx.rng.int(minWhole, maxWhole) * 10 + ctx.rng.int(1, 9) };
+}
+
 function genLiteral(ctx: Ctx, type: ValueType, small = false): Expr {
   switch (type) {
     case 'int':
@@ -762,10 +773,11 @@ function genLiteral(ctx: Ctx, type: ValueType, small = false): Expr {
         value: small ? ctx.rng.int(1, OPERAND_MAX) : ctx.rng.int(0, ctx.config.intMax),
       };
     case 'double':
-      return {
-        kind: 'double',
-        tenths: ctx.rng.int(1, small ? OPERAND_MAX * 10 : ctx.config.doubleTenthsMax),
-      };
+      return fractional(
+        ctx,
+        0,
+        small ? OPERAND_MAX - 1 : Math.floor(ctx.config.doubleTenthsMax / 10),
+      );
     case 'boolean':
       return { kind: 'boolean', value: ctx.rng.chance(0.5) };
     case 'string': {
